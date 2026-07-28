@@ -20,9 +20,6 @@ entryPoints:
   # HTTPS — all production traffic
   websecure:
     address: ":443"
-    http:
-      tls:
-        certResolver: letsencrypt
 
 # ── Certificate Resolver (Let's Encrypt) ─────────────────────────────────────
 certificatesResolvers:

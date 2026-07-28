@@ -8,11 +8,11 @@ services:
 
   # ── Traefik Reverse Proxy + SSL ───────────────────────────────────────────
   traefik:
-    image: traefik:v3.0
+    image: traefik:v2.11
     container_name: opene-traefik
     restart: unless-stopped
     environment:
-      - DOCKER_API_VERSION=1.40
+      - DOCKER_API_VERSION=1.41
     ports:
       - "80:80"
       - "443:443"
