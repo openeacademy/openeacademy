@@ -21,15 +21,7 @@ out/
 .cache/
 
 # ----- Environment / Secrets (NEVER commit) ----------------
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.production
-# Keep examples — they guide teammates
-!.env.example
-!.env.*.example
+.env*
 
 # ----- Logs ------------------------------------------------
 logs/
