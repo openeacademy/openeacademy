@@ -29,7 +29,7 @@ services:
     labels:
       - "traefik.enable=false"  # Traefik doesn't route to itself
 
-  # ── Web App (openeacademy.in) ─────────────────────────────────────────────
+  # ── Web App (openeacademy.in & www.openeacademy.in) ─────────────────────
   web:
     build:
       context: ./web
@@ -40,8 +40,8 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-      # Route: openeacademy.in (but NOT /admin paths — lower priority)
-      - "traefik.http.routers.web.rule=Host(`openeacademy.in`) && !PathPrefix(`/admin`)"
+      # Route: openeacademy.in or www.openeacademy.in (but NOT /admin paths)
+      - "traefik.http.routers.web.rule=(Host(`openeacademy.in`) || Host(`www.openeacademy.in`)) && !PathPrefix(`/admin`)"
       - "traefik.http.routers.web.entrypoints=websecure"
       - "traefik.http.routers.web.tls=true"
       - "traefik.http.routers.web.tls.certresolver=letsencrypt"
@@ -49,7 +49,7 @@ services:
       - "traefik.http.routers.web.priority=1"
       - "traefik.http.services.web.loadbalancer.server.port=80"
 
-  # ── Admin Panel (openeacademy.in/admin) ──────────────────────────────────
+  # ── Admin Panel (openeacademy.in/admin & www.openeacademy.in/admin) ────
   admin:
     build:
       context: ./admin
@@ -60,8 +60,8 @@ services:
       - proxy
     labels:
       - "traefik.enable=true"
-      # Route: openeacademy.in/admin (higher priority than web)
-      - "traefik.http.routers.admin.rule=Host(`openeacademy.in`) && PathPrefix(`/admin`)"
+      # Route: openeacademy.in/admin or www.openeacademy.in/admin
+      - "traefik.http.routers.admin.rule=(Host(`openeacademy.in`) || Host(`www.openeacademy.in`)) && PathPrefix(`/admin`)"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls=true"
       - "traefik.http.routers.admin.tls.certresolver=letsencrypt"
