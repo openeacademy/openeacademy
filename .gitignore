@@ -1,0 +1,102 @@
+# ============================================================
+#  Open E Academy — .gitignore
+# ============================================================
+
+# ----- Documentation (excluded as requested) ---------------
+mdfiles/
+
+# ----- Dependencies ----------------------------------------
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ----- Build output ----------------------------------------
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.cache/
+
+# ----- Environment / Secrets (NEVER commit) ----------------
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+# Keep examples — they guide teammates
+!.env.example
+!.env.*.example
+
+# ----- Logs ------------------------------------------------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ----- Testing / Coverage ----------------------------------
+coverage/
+.nyc_output/
+*.lcov
+
+# ----- TypeScript ------------------------------------------
+*.tsbuildinfo
+
+# ----- OS generated ----------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ----- Editors & IDEs --------------------------------------
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*~
+
+# ----- SSL / Certificates (NEVER commit private keys) ------
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+*.der
+
+# ----- Traefik (auto-generated at runtime) -----------------
+traefik/acme/
+traefik/acme.json
+
+# ----- Docker volumes / local data -------------------------
+postgres_data/
+redis_data/
+
+# ----- Prisma generated ------------------------------------ 
+prisma/migrations/**/migration_lock.toml
+
+# ----- Mobile (React Native / Expo) ------------------------
+# Mobile has its own git repo — add as submodule separately if needed
+mobile/
+
+
+# ----- Misc ------------------------------------------------
+*.local
+.turbo/
+.parcel-cache/
+storybook-static/

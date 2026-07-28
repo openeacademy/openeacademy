@@ -1,0 +1,61 @@
+# Traefik v3 Static Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+global:
+  checkNewVersion: true
+  sendAnonymousUsage: false
+
+# ── Entry Points ─────────────────────────────────────────────────────────────
+entryPoints:
+  # HTTP — auto-redirects to HTTPS
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  # HTTPS — all production traffic
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+
+# ── Certificate Resolver (Let's Encrypt) ─────────────────────────────────────
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@openeacademy.in
+      # acme.json must exist with chmod 600 before first run:
+      #   touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
+      storage: /etc/traefik/acme/acme.json
+      # HTTP-01 challenge (port 80 must be reachable)
+      httpChallenge:
+        entryPoint: web
+
+# ── Providers ─────────────────────────────────────────────────────────────────
+providers:
+  # Docker labels drive routing rules
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false      # only route containers with traefik.enable=true
+    network: proxy               # only inspect containers on this network
+
+  # Static file for global middlewares (security headers, etc.)
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+log:
+  level: INFO   # DEBUG | INFO | WARN | ERROR
+
+accessLog: {}   # enable access logs
+
+# ── API / Dashboard (disabled in production) ──────────────────────────────────
+api:
+  dashboard: false
+  insecure: false

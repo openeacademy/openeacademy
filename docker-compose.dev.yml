@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  docker-compose.dev.yml — Local Development Overrides
+#
+#  Usage:
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+#  This file:
+#   - Disables Traefik (uses direct port mapping instead)
+#   - Exposes Postgres and Redis to host for local tools (TablePlus, RedisInsight)
+#   - Skips TLS (no HTTPS needed locally)
+#   - Mounts source for faster iteration (backend only; frontend has HMR via npm)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # Skip Traefik entirely in local dev
+  traefik:
+    profiles:
+      - production-only   # Never started unless explicitly requested
+
+  # Web — direct port, no TLS labels
+  web:
+    ports:
+      - "3000:80"
+    labels:
+      traefik.enable: "false"
+
+  # Admin — direct port, no TLS labels
+  admin:
+    ports:
+      - "3001:80"
+    labels:
+      traefik.enable: "false"
+
+  # Backend — direct port, no TLS labels
+  backend:
+    ports:
+      - "5000:5000"
+    labels:
+      traefik.enable: "false"
+    environment:
+      NODE_ENV: development
+
+  # Postgres — exposed to host for local DB tools
+  postgres:
+    ports:
+      - "5432:5432"
+
+  # Redis — exposed to host for local inspection tools
+  redis:
+    ports:
+      - "6379:6379"

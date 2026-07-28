@@ -1,0 +1,45 @@
+# Traefik v3 Dynamic Configuration
+# Applied via file provider — changes take effect without restart
+# ─────────────────────────────────────────────────────────────────────────────
+
+http:
+  middlewares:
+
+    # ── HTTPS redirect (also applied at entrypoint level, belt-and-suspenders) ─
+    https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    # ── Strip /admin prefix before forwarding to admin container ──────────────
+    admin-strip-prefix:
+      stripPrefix:
+        prefixes:
+          - "/admin"
+
+    # ── Security headers applied to all HTTPS responses ───────────────────────
+    secure-headers:
+      headers:
+        # Prevent clickjacking
+        frameDeny: true
+        customFrameOptionsValue: "SAMEORIGIN"
+        # Prevent MIME sniffing
+        contentTypeNosniff: true
+        # XSS filter
+        browserXssFilter: true
+        # HSTS — 1 year, include subdomains
+        forceSTSHeader: true
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        # Referrer policy
+        referrerPolicy: "strict-origin-when-cross-origin"
+        # Permissions policy
+        permissionsPolicy: "camera=(), microphone=(), geolocation=()"
+
+    # ── Rate limiter for API routes ───────────────────────────────────────────
+    api-rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m

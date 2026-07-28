@@ -1,0 +1,831 @@
+// Prisma Schema — Open E Academy
+// Production-ready schema supporting all modules + future expansion
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPER_ADMIN
+  TEACHER
+  CONTENT_MANAGER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  PENDING_VERIFICATION
+}
+
+enum OtpType {
+  EMAIL_VERIFICATION
+  MOBILE_VERIFICATION
+  PASSWORD_RESET
+  LOGIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}
+
+enum PlanType {
+  EXAM_PACK
+  SUBJECT_PACK
+  PDF_ONLY
+  PREMIUM
+  CUSTOM
+}
+
+enum PlanDuration {
+  ONE_MONTH
+  THREE_MONTHS
+  SIX_MONTHS
+  TWELVE_MONTHS
+  LIFETIME
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentProvider {
+  RAZORPAY
+  MANUAL
+  UPI
+  BANK_TRANSFER
+}
+
+enum QuizType {
+  TOPIC_QUIZ
+  SUBJECT_QUIZ
+  FULL_EXAM_QUIZ
+  MOCK_TEST
+  DAILY_QUIZ
+  WEEKLY_QUIZ
+}
+
+enum QuestionType {
+  MCQ
+  MULTIPLE_CORRECT
+  TRUE_FALSE
+  FILL_BLANKS
+  IMAGE_QUESTION
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum PDFLanguage {
+  ENGLISH
+  HINDI
+  BILINGUAL
+}
+
+enum NotificationType {
+  PUSH
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationCategory {
+  ANNOUNCEMENT
+  EXAM_UPDATE
+  NEW_PDF
+  QUIZ_ALERT
+  SUBSCRIPTION_EXPIRY
+  OFFER
+  SYSTEM
+}
+
+enum CouponType {
+  FLAT
+  PERCENTAGE
+}
+
+enum ActivityAction {
+  LOGIN
+  LOGOUT
+  PDF_VIEW
+  PDF_DOWNLOAD
+  QUIZ_START
+  QUIZ_COMPLETE
+  SUBSCRIPTION_PURCHASE
+  PASSWORD_CHANGE
+  PROFILE_UPDATE
+  ADMIN_ACTION
+}
+
+// ─────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────
+
+model User {
+  id             String     @id @default(uuid())
+  email          String?    @unique
+  mobile         String?    @unique
+  name           String
+  avatar         String?
+  passwordHash   String?
+  role           UserRole   @default(USER)
+  status         UserStatus @default(PENDING_VERIFICATION)
+  emailVerified  Boolean    @default(false)
+  mobileVerified Boolean    @default(false)
+  referralCode   String?    @unique
+  referredBy     String?
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  otps          Otp[]
+  sessions      Session[]
+  subscriptions Subscription[]
+  payments      Payment[]
+  pdfAccesses   PDFAccess[]
+  bookmarks     Bookmark[]
+  quizAttempts  QuizAttempt[]
+  notifications UserNotification[]
+  activityLogs  ActivityLog[]
+  devices       UserDevice[]
+  progress      UserProgress[]
+
+  @@map("users")
+}
+
+model Otp {
+  id        String   @id @default(uuid())
+  userId    String?
+  contact   String // email or mobile
+  type      OtpType
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otps")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  deviceInfo   String?
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model UserDevice {
+  id         String   @id @default(uuid())
+  userId     String
+  deviceId   String
+  deviceName String?
+  platform   String?
+  pushToken  String?
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@map("user_devices")
+}
+
+// ─────────────────────────────────────────────
+// EXAMS & SUBJECTS
+// ─────────────────────────────────────────────
+
+model Exam {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  banner      String?
+  icon        String?
+  color       String?
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  subjects      Subject[]
+  pdfs          PDF[]
+  quizzes       Quiz[]
+  plans         SubscriptionPlan[]
+  notifications Notification[]
+  faqs          FAQ[]
+  seo           SEOMeta?
+
+  @@map("exams")
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  examId      String
+  name        String
+  slug        String
+  description String?
+  icon        String?
+  coverImage  String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  exam        Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  topics      Topic[]
+  pdfs        PDF[]
+  quizzes     Quiz[]
+  quizConfigs QuizSubjectConfig[]
+
+  @@unique([examId, slug])
+  @@map("subjects")
+}
+
+model Topic {
+  id          String   @id @default(uuid())
+  subjectId   String
+  name        String
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  subject   Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  questions Question[]
+  quizzes   Quiz[]
+
+  @@map("topics")
+}
+
+// ─────────────────────────────────────────────
+// PDF MODULE
+// ─────────────────────────────────────────────
+
+model PDF {
+  id                   String      @id @default(uuid())
+  examId               String?
+  subjectId            String?
+  title                String
+  slug                 String      @unique
+  description          String?
+  thumbnailUrl         String?
+  s3Key                String // private S3 key
+  fileSize             Int? // bytes
+  totalPages           Int?
+  language             PDFLanguage @default(ENGLISH)
+  version              String      @default("1.0")
+  author               String?
+  publishedAt          DateTime?
+  tags                 String[]
+  freePreviewPages     Int         @default(10)
+  requiresSubscription Boolean     @default(true)
+  allowDownload        Boolean     @default(false)
+  watermarkText        String?
+  isActive             Boolean     @default(true)
+  isFeatured           Boolean     @default(false)
+  downloadCount        Int         @default(0)
+  viewCount            Int         @default(0)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  exam      Exam?        @relation(fields: [examId], references: [id], onDelete: SetNull)
+  subject   Subject?     @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  accesses  PDFAccess[]
+  bookmarks Bookmark[]
+  seo       SEOMeta?
+  versions  PDFVersion[]
+
+  @@map("pdfs")
+}
+
+model PDFVersion {
+  id         String   @id @default(uuid())
+  pdfId      String
+  version    String
+  s3Key      String
+  fileSize   Int?
+  totalPages Int?
+  uploadedAt DateTime @default(now())
+  uploadedBy String?
+
+  pdf PDF @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+
+  @@map("pdf_versions")
+}
+
+model PDFAccess {
+  id              String   @id @default(uuid())
+  userId          String
+  pdfId           String
+  lastPage        Int      @default(0)
+  totalPagesRead  Int      @default(0)
+  readingProgress Float    @default(0)
+  isUnlocked      Boolean  @default(false)
+  firstAccessAt   DateTime @default(now())
+  lastAccessAt    DateTime @default(now())
+  accessCount     Int      @default(1)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pdf  PDF  @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pdfId])
+  @@map("pdf_accesses")
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  pdfId     String?
+  quizId    String?
+  page      Int?
+  note      String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pdf  PDF? @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+
+  @@map("bookmarks")
+}
+
+// ─────────────────────────────────────────────
+// QUIZ MODULE
+// ─────────────────────────────────────────────
+
+enum MarkDistributionType {
+  EQUAL
+  MANUAL
+}
+
+model Quiz {
+  id                   String    @id @default(uuid())
+  examId               String?
+  subjectId            String?
+  topicId              String?
+  title                String
+  slug                 String    @unique
+  description          String?
+  type                 QuizType  @default(TOPIC_QUIZ)
+  durationMinutes      Int       @default(60)
+  totalMarks           Int       @default(100)
+  passingMarks         Int       @default(35)
+  negativeMarking      Boolean   @default(false)
+  negativeMarkValue    Float     @default(0.25)
+  shuffleQuestions     Boolean   @default(true)
+  shuffleOptions       Boolean   @default(true)
+  maxAttempts          Int?
+  requiresSubscription Boolean   @default(true)
+  isActive             Boolean   @default(true)
+  isFeatured           Boolean   @default(false)
+  publishedAt          DateTime?
+  scheduledAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  exam    Exam?    @relation(fields: [examId], references: [id], onDelete: SetNull)
+  subject Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topic   Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+
+  isMultiSubject       Boolean              @default(false)
+  markDistributionType MarkDistributionType @default(EQUAL)
+
+  quizQuestions  QuizQuestion[]
+  subjectConfigs QuizSubjectConfig[]
+  attempts       QuizAttempt[]
+  seo            SEOMeta?
+
+  @@map("quizzes")
+}
+
+model QuizSubjectConfig {
+  id               String   @id @default(uuid())
+  quizId           String
+  subjectId        String
+  
+  questionCount    Int      @default(0)
+  marksPerQuestion Float?   
+  
+  isRandom         Boolean  @default(false)
+  selectionMode    String   @default("TOTAL_RANDOM") // "TOTAL_RANDOM" or "SELECTIVE"
+  categoryIds      String[] // Array of category IDs for TOTAL_RANDOM
+  categoryDistribution Json? // Array of {categoryId, count} for SELECTIVE
+  
+  quiz             Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  subject          Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, subjectId])
+  @@map("quiz_subject_configs")
+}
+
+model QuestionCategory {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  questions Question[]
+
+  @@map("question_categories")
+}
+
+model Question {
+  id               String            @id @default(uuid())
+  topicId          String?
+  categoryId       String?
+  questionText     String
+  questionImage    String?
+  type             QuestionType      @default(MCQ)
+  difficulty       Difficulty        @default(MEDIUM)
+  marks            Float             @default(1)
+  negativeMarks    Float             @default(0.25)
+  explanation      String?
+  explanationImage String?
+  tags             String[]
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  topic         Topic?            @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  category      QuestionCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  options       QuestionOption[]
+  quizQuestions QuizQuestion[]
+  responses     AttemptResponse[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id          String  @id @default(uuid())
+  questionId  String
+  optionText  String
+  optionImage String?
+  isCorrect   Boolean @default(false)
+  sortOrder   Int     @default(0)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@map("question_options")
+}
+
+model QuizQuestion {
+  id         String @id @default(uuid())
+  quizId     String
+  questionId String
+  sortOrder  Int    @default(0)
+
+  quiz     Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, questionId])
+  @@map("quiz_questions")
+}
+
+model QuizAttempt {
+  id               String    @id @default(uuid())
+  userId           String
+  quizId           String
+  startedAt        DateTime  @default(now())
+  completedAt      DateTime?
+  totalQuestions   Int
+  attempted        Int       @default(0)
+  correct          Int       @default(0)
+  incorrect        Int       @default(0)
+  skipped          Int       @default(0)
+  marksObtained    Float     @default(0)
+  totalMarks       Float
+  percentage       Float     @default(0)
+  rank             Int?
+  timeTakenSeconds Int?
+  isPaused         Boolean   @default(false)
+  pausedAt         DateTime?
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  responses AttemptResponse[]
+  Quiz      Quiz              @relation(fields: [quizId], references: [id])
+
+  @@map("quiz_attempts")
+}
+
+model AttemptResponse {
+  id               String   @id @default(uuid())
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  selectedOptions  String[]
+  isCorrect        Boolean  @default(false)
+  marksObtained    Float    @default(0)
+  isSkipped        Boolean  @default(false)
+  markedForReview  Boolean  @default(false)
+  timeTakenSeconds Int?
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("attempt_responses")
+}
+
+// ─────────────────────────────────────────────
+// SUBSCRIPTIONS & PAYMENTS
+// ─────────────────────────────────────────────
+
+model SubscriptionPlan {
+  id              String       @id @default(uuid())
+  examId          String?
+  name            String
+  description     String?
+  type            PlanType     @default(PREMIUM)
+  duration        PlanDuration
+  durationDays    Int // computed from duration
+  originalPrice   Float
+  discountedPrice Float
+  gstPercent      Float        @default(18)
+  features        String[]
+  isActive        Boolean      @default(true)
+  isFeatured      Boolean      @default(false)
+  sortOrder       Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  exam          Exam?          @relation(fields: [examId], references: [id], onDelete: SetNull)
+  subscriptions Subscription[]
+  coupons       CouponPlan[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id         String             @id @default(uuid())
+  userId     String
+  planId     String
+  status     SubscriptionStatus @default(ACTIVE)
+  startDate  DateTime
+  endDate    DateTime
+  isLifetime Boolean            @default(false)
+  assignedBy String? // admin user id for manual assignments
+  notes      String?
+  paymentId  String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan    SubscriptionPlan @relation(fields: [planId], references: [id])
+  payment Payment?         @relation(fields: [paymentId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                String          @id @default(uuid())
+  userId            String
+  planId            String?
+  amount            Float
+  gstAmount         Float           @default(0)
+  discountAmount    Float           @default(0)
+  finalAmount       Float
+  currency          String          @default("INR")
+  status            PaymentStatus   @default(PENDING)
+  provider          PaymentProvider @default(RAZORPAY)
+  providerOrderId   String?
+  providerPaymentId String?
+  providerSignature String?
+  couponId          String?
+  invoiceNumber     String?         @unique
+  invoiceUrl        String?
+  refundId          String?
+  refundAmount      Float?
+  refundReason      String?
+  metadata          Json?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coupon        Coupon?        @relation(fields: [couponId], references: [id])
+  subscriptions Subscription[]
+
+  @@map("payments")
+}
+
+model Coupon {
+  id          String     @id @default(uuid())
+  code        String     @unique
+  type        CouponType @default(PERCENTAGE)
+  value       Float // percent or flat amount
+  maxDiscount Float? // cap for percentage coupons
+  minPurchase Float      @default(0)
+  usageLimit  Int?
+  usedCount   Int        @default(0)
+  isActive    Boolean    @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  payments CouponPlan[]
+  usedIn   Payment[]
+
+  @@map("coupons")
+}
+
+model CouponPlan {
+  couponId String
+  planId   String
+
+  coupon Coupon           @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@id([couponId, planId])
+  @@map("coupon_plans")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id          String               @id @default(uuid())
+  examId      String?
+  title       String
+  message     String
+  type        NotificationType     @default(IN_APP)
+  category    NotificationCategory @default(ANNOUNCEMENT)
+  imageUrl    String?
+  actionUrl   String?
+  isGlobal    Boolean              @default(false)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime             @default(now())
+
+  exam              Exam?              @relation(fields: [examId], references: [id], onDelete: SetNull)
+  userNotifications UserNotification[]
+
+  @@map("notifications")
+}
+
+model UserNotification {
+  id             String    @id @default(uuid())
+  userId         String
+  notificationId String
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationId])
+  @@map("user_notifications")
+}
+
+// ─────────────────────────────────────────────
+// SEO & FAQ
+// ─────────────────────────────────────────────
+
+model SEOMeta {
+  id                 String   @id @default(uuid())
+  examId             String?  @unique
+  pdfId              String?  @unique
+  quizId             String?  @unique
+  title              String?
+  description        String?
+  keywords           String[]
+  canonical          String?
+  ogTitle            String?
+  ogDescription      String?
+  ogImage            String?
+  twitterCard        String?
+  twitterTitle       String?
+  twitterDescription String?
+  schema             Json?
+  robots             String   @default("index,follow")
+
+  exam Exam? @relation(fields: [examId], references: [id], onDelete: Cascade)
+  pdf  PDF?  @relation(fields: [pdfId], references: [id], onDelete: Cascade)
+  quiz Quiz? @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("seo_meta")
+}
+
+model FAQ {
+  id        String   @id @default(uuid())
+  examId    String?
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  exam Exam? @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@map("faqs")
+}
+
+// ─────────────────────────────────────────────
+// PROGRESS & ACTIVITY
+// ─────────────────────────────────────────────
+
+model UserProgress {
+  id              String   @id @default(uuid())
+  userId          String
+  subjectId       String
+  completedTopics String[]
+  progressPercent Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subjectId])
+  @@map("user_progress")
+}
+
+model ActivityLog {
+  id         String         @id @default(uuid())
+  userId     String
+  action     ActivityAction
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────────
+// ADMIN / SYSTEM
+// ─────────────────────────────────────────────
+
+model AdminLog {
+  id         String   @id @default(uuid())
+  adminId    String
+  action     String
+  entityType String?
+  entityId   String?
+  oldData    Json?
+  newData    Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@map("admin_logs")
+}
+
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  group     String   @default("general")
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+// ─────────────────────────────────────────────
+// FILE STORAGE (Replaces S3)
+// ─────────────────────────────────────────────
+
+model FileStorage {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  fileName  String?
+  mimeType  String
+  data      Bytes
+  size      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("file_storage")
+}
