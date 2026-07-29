@@ -47,7 +47,7 @@ providers:
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 log:
-  level: INFO   # DEBUG | INFO | WARN | ERROR
+  level: DEBUG
 
 accessLog: {}   # enable access logs
 
