@@ -37,9 +37,9 @@ http:
         # Permissions policy
         permissionsPolicy: "camera=(), microphone=(), geolocation=()"
 
-    # ── Rate limiter for API routes ───────────────────────────────────────────
+    # ── Rate limiter for API routes (Traefik v2 syntax) ──────────────────────
     api-rate-limit:
       rateLimit:
         average: 100
         burst: 200
-        period: 1m
+
