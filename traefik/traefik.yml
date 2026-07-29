@@ -29,9 +29,8 @@ certificatesResolvers:
       # acme.json must exist with chmod 600 before first run:
       #   touch traefik/acme/acme.json && chmod 600 traefik/acme/acme.json
       storage: /etc/traefik/acme/acme.json
-      # HTTP-01 challenge (port 80 must be reachable)
-      httpChallenge:
-        entryPoint: web
+      # TLS-ALPN-01 challenge (more reliable, uses port 443)
+      tlsChallenge: {}
 
 # ── Providers ─────────────────────────────────────────────────────────────────
 providers:
