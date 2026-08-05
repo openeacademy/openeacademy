@@ -22,6 +22,7 @@ out/
 
 # ----- Environment / Secrets (NEVER commit) ----------------
 .env*
+!.env.production
 
 # ----- Logs ------------------------------------------------
 logs/
