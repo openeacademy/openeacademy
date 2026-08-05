@@ -91,11 +91,20 @@ services:
       - internal
     labels:
       - "traefik.enable=true"
+      # Router 1: api.openeacademy.in (subdomain, for when DNS is set up)
       - "traefik.http.routers.backend.rule=Host(`api.openeacademy.in`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls=true"
       - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
       - "traefik.http.routers.backend.middlewares=secure-headers@file,api-rate-limit@file"
+      - "traefik.http.routers.backend.priority=5"
+      # Router 2: openeacademy.in/api (path-based, works without DNS subdomain)
+      - "traefik.http.routers.backend-path.rule=(Host(`openeacademy.in`) || Host(`www.openeacademy.in`)) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend-path.entrypoints=websecure"
+      - "traefik.http.routers.backend-path.tls=true"
+      - "traefik.http.routers.backend-path.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.backend-path.middlewares=secure-headers@file,api-rate-limit@file"
+      - "traefik.http.routers.backend-path.priority=20"
       - "traefik.http.services.backend.loadbalancer.server.port=5000"
 
   # ── PostgreSQL ────────────────────────────────────────────────────────────
