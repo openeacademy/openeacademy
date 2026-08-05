@@ -91,6 +91,8 @@ services:
       - internal
     labels:
       - "traefik.enable=true"
+      # Explicitly tell Traefik to use the proxy network (fixes 504 Gateway Timeout)
+      - "traefik.docker.network=openeacademy_proxy"
       # Router 1: api.openeacademy.in (subdomain, for when DNS is set up)
       - "traefik.http.routers.backend.rule=Host(`api.openeacademy.in`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
