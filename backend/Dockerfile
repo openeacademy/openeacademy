@@ -19,6 +19,9 @@ RUN npm run build
 # ── Stage 2: Production image ─────────────────────────────────
 FROM node:20-alpine AS production
 
+# Install OpenSSL (required by Prisma engine binary on Alpine/musl)
+RUN apk add --no-cache openssl
+
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser  -S nodejs -u 1001 -G nodejs
