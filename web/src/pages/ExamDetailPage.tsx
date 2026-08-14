@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
@@ -17,6 +17,15 @@ export default function ExamDetailPage() {
   });
 
   const exam = data?.data;
+  const pdfs = (exam as any)?.pdfs || [];
+  const quizzes = (exam as any)?.quizzes || [];
+
+  // Reset active tab if quizzes tab is selected but no quizzes available
+  useEffect(() => {
+    if (activeTab === 'quizzes' && quizzes.length === 0) {
+      setActiveTab('subjects');
+    }
+  }, [quizzes.length, activeTab]);
 
   if (isLoading) {
     return (
@@ -38,9 +47,6 @@ export default function ExamDetailPage() {
       </div>
     );
   }
-
-  const pdfs = (exam as any)?.pdfs || [];
-  const quizzes = (exam as any)?.quizzes || [];
 
   return (
     <div className="max-w-7xl mx-auto w-full space-y-6">
@@ -113,16 +119,19 @@ export default function ExamDetailPage() {
         >
           <FileText className="w-4 h-4" /> Study Notes ({pdfs.length})
         </button>
-        <button
-          onClick={() => setActiveTab('quizzes')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'quizzes'
-              ? 'bg-primary-600 text-white shadow-md'
-              : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-          }`}
-        >
-          <Trophy className="w-4 h-4" /> Practice Quizzes ({quizzes.length})
-        </button>
+        {/* Practice Quizzes tab: only show when quizzes exist */}
+        {quizzes.length > 0 && (
+          <button
+            onClick={() => setActiveTab('quizzes')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              activeTab === 'quizzes'
+                ? 'bg-primary-600 text-white shadow-md'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            <Trophy className="w-4 h-4" /> Practice Quizzes ({quizzes.length})
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -185,9 +194,9 @@ export default function ExamDetailPage() {
                         className="card p-4 bg-white border border-gray-200/80 rounded-2xl hover:border-primary-300 hover:shadow-md transition-all flex flex-col justify-between"
                       >
                         <div className="flex items-start gap-3.5 mb-3">
-                          <div className="w-10 h-12 bg-rose-50 border border-rose-100 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
+                          <div className="w-12 h-16 bg-white border border-gray-100 rounded-xl flex items-center justify-center shrink-0 overflow-hidden">
                             {thumbUrl ? (
-                              <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                              <img src={thumbUrl} alt="" className="w-full h-full object-contain" />
                             ) : (
                               <FileText className="w-5 h-5 text-rose-500" />
                             )}

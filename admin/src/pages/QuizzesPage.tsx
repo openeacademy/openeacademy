@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { toast } from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from '../lib/api';
+import { generateSlug } from '../lib/utils';
 import AdminTableHeader from '../components/shared/AdminTableHeader';
 import AdminPagination from '../components/shared/AdminPagination';
 import SlideDrawer from '../components/shared/SlideDrawer';
@@ -343,7 +344,7 @@ export default function QuizzesPage() {
       title,
       slug: editingQuiz
         ? prev.slug
-        : title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+        : generateSlug(title),
     }));
   };
 

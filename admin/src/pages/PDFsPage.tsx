@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from '../lib/api';
 import api from '../lib/api';
+import { generateSlug } from '../lib/utils';
 import AdminTableHeader from '../components/shared/AdminTableHeader';
 import AdminPagination from '../components/shared/AdminPagination';
 import SlideDrawer from '../components/shared/SlideDrawer';
@@ -51,6 +52,7 @@ export default function PDFsPage() {
   const [formData, setFormData] = useState(defaultForm());
   const [formError, setFormError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<any | null>(null);
+  const [autoThumbnail, setAutoThumbnail] = useState(true);
 
   // Upload / compression
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -107,11 +109,11 @@ export default function PDFsPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-pdfs'] }); toast.success('Deleted'); setDeleteConfirm(null); },
   });
 
-  const openCreate = () => { setEditingPdf(null); setFormData(defaultForm()); setFormError(''); setSelectedFiles([]); setDrawerOpen(true); };
+  const openCreate = () => { setEditingPdf(null); setFormData(defaultForm()); setFormError(''); setSelectedFiles([]); setAutoThumbnail(true); setDrawerOpen(true); };
   const openEdit = (pdf: any) => {
     setEditingPdf(pdf);
     setFormData({ title: pdf.title || '', slug: pdf.slug || '', description: pdf.description || '', author: pdf.author || 'OpenEAcademy Editorial', examId: pdf.examId || '', subjectId: pdf.subjectId || '', language: pdf.language || 'ENGLISH', fileUrl: pdf.s3Key || '', thumbnailUrl: pdf.thumbnailUrl || '', totalPages: pdf.totalPages ?? 0, fileSize: pdf.fileSize || 0, requiresSubscription: pdf.requiresSubscription ?? true, freePreviewPages: pdf.freePreviewPages ?? 3, allowDownload: pdf.allowDownload ?? false, watermarkText: pdf.watermarkText || 'OpenEAcademy Study Notes - Confidential', isActive: pdf.isActive ?? true, isFeatured: pdf.isFeatured ?? false });
-    setFormError(''); setSelectedFiles([]); setDrawerOpen(true);
+    setFormError(''); setSelectedFiles([]); setAutoThumbnail(true); setDrawerOpen(true);
   };
   const closeDrawer = () => { setDrawerOpen(false); setEditingPdf(null); setSelectedFiles([]); };
 
@@ -126,7 +128,7 @@ export default function PDFsPage() {
         fileUrl: file.name, 
         fileSize: file.size,
         title: prev.title || file.name.replace(/\.[^/.]+$/, ""),
-        slug: prev.slug || file.name.replace(/\.[^/.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        slug: prev.slug || generateSlug(file.name.replace(/\.[^/.]+$/, ""))
       }));
 
       // Auto-count pages using pdf.js for single file
@@ -171,7 +173,7 @@ export default function PDFsPage() {
 
           if (selectedFiles.length > 1) {
             payload.title = file.name.replace(/\.[^/.]+$/, "");
-            payload.slug = payload.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+            payload.slug = generateSlug(payload.title);
           }
 
           // Accurately detect total pages using PDF.js for each document
@@ -191,6 +193,32 @@ export default function PDFsPage() {
             const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
             if (pdfDoc.numPages) {
               payload.totalPages = pdfDoc.numPages;
+            }
+
+            if (autoThumbnail && !payload.thumbnailUrl) {
+              try {
+                const page = await pdfDoc.getPage(1);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                if (context) {
+                  canvas.height = viewport.height;
+                  canvas.width = viewport.width;
+                  await page.render({ canvasContext: context, viewport: viewport }).promise;
+                  
+                  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+                  if (blob) {
+                    const thumbFd = new FormData();
+                    thumbFd.append('file', new File([blob], uploadFile.name.replace(/\.[^/.]+$/, "") + "-thumb.jpg", { type: 'image/jpeg' }));
+                    const thumbRes = await api.post<any>('/admin/upload-image', thumbFd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    if (thumbRes.data?.data?.url) {
+                      payload.thumbnailUrl = thumbRes.data.data.url;
+                    }
+                  }
+                }
+              } catch (e) {
+                console.warn('Failed to generate thumbnail:', e);
+              }
             }
           } catch (e) {
             console.warn('PDF.js client page count warning:', e);
@@ -414,7 +442,7 @@ export default function PDFsPage() {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Title *</label>
-            <input disabled={selectedFiles.length > 1} value={formData.title} onChange={e => { const t = e.target.value; setFormData(p => ({ ...p, title: t, slug: editingPdf ? p.slug : t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') })); }} placeholder={selectedFiles.length > 1 ? "Auto-generated from filenames" : "e.g. Quant Formula Sheet"} className="input disabled:opacity-50" />
+            <input disabled={selectedFiles.length > 1} value={formData.title} onChange={e => { const t = e.target.value; setFormData(p => ({ ...p, title: t, slug: editingPdf ? p.slug : generateSlug(t) })); }} placeholder={selectedFiles.length > 1 ? "Auto-generated from filenames" : "e.g. Quant Formula Sheet"} className="input disabled:opacity-50" />
           </div>
           <div>
             <label className="label">Slug *</label>
@@ -490,7 +518,15 @@ export default function PDFsPage() {
           )}
         </div>
 
-        <ImageUploadField label="Thumbnail Image" value={formData.thumbnailUrl} onChange={v => setFormData(p => ({ ...p, thumbnailUrl: v }))} hint="Shown as PDF cover image in lists" />
+        <div>
+          <ImageUploadField label="Thumbnail Image" value={formData.thumbnailUrl} onChange={v => setFormData(p => ({ ...p, thumbnailUrl: v }))} hint="Shown as PDF cover image in lists" />
+          {selectedFiles.length > 0 && !formData.thumbnailUrl && (
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-gray-700 mt-2">
+              <input type="checkbox" checked={autoThumbnail} onChange={e => setAutoThumbnail(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4" />
+              Auto-generate thumbnail from the first page of PDF
+            </label>
+          )}
+        </div>
 
         <div>
           <label className="label">Description</label>

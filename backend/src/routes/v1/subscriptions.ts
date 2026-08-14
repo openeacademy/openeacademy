@@ -1,5 +1,4 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { body } from 'express-validator';
 import prisma from '../../config/database';
@@ -7,15 +6,12 @@ import { validate } from '../../middleware/validate';
 import { authenticate, authorize } from '../../middleware/auth';
 import { sendSuccess, sendCreated, sendPaginated } from '../../utils/response';
 import { NotFoundError, AppError } from '../../utils/errors';
-import { config } from '../../config';
+import { getRazorpayInstance, getRazorpayConfig } from '../../utils/razorpay';
 import { UserRole } from '@prisma/client';
 import { sendEmail } from '../../utils/email';
+import { config } from '../../config';
 
 const router = Router();
-
-const razorpay = config.razorpay.keyId
-  ? new Razorpay({ key_id: config.razorpay.keyId, key_secret: config.razorpay.keySecret })
-  : null;
 
 // ─── Subscription Plans ───────────────────────────────────────────────────────
 
@@ -153,6 +149,9 @@ router.post(
 
       let providerOrderId = `manual_${Date.now()}`;
 
+      const razorpay = await getRazorpayInstance();
+      const razorpayConfig = await getRazorpayConfig();
+
       if (razorpay) {
         const order = await razorpay.orders.create({
           amount: amountInPaise,
@@ -186,7 +185,7 @@ router.post(
         paymentId: payment.id,
         amount: amountInPaise,
         currency: 'INR',
-        keyId: config.razorpay.keyId,
+        keyId: razorpayConfig.keyId,
         plan: { name: plan.name, discountedPrice: plan.discountedPrice },
         breakdown: { baseAmount, discountAmount, gstAmount, finalAmount },
       });
@@ -202,9 +201,9 @@ router.post(
   '/verify-payment',
   authenticate,
   [
-    body('razorpay_order_id').notEmpty(),
+    body('razorpay_order_id').optional(),
     body('razorpay_payment_id').notEmpty(),
-    body('razorpay_signature').notEmpty(),
+    body('razorpay_signature').optional(),
     body('paymentId').notEmpty(),
   ],
   validate,
@@ -213,13 +212,21 @@ router.post(
       const { razorpay_order_id, razorpay_payment_id, razorpay_signature, paymentId } = req.body;
 
       // Verify signature
-      const expectedSignature = crypto
-        .createHmac('sha256', config.razorpay.keySecret)
-        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-        .digest('hex');
+      const razorpayConfig = await getRazorpayConfig();
 
-      if (expectedSignature !== razorpay_signature && config.env !== 'development') {
-        throw new AppError('Payment verification failed', 400);
+      if (!razorpay_order_id || !razorpay_signature) {
+        if (config.env !== 'development') {
+          throw new AppError('Missing payment signature', 400);
+        }
+      } else if (razorpayConfig.keySecret) {
+        const expectedSignature = crypto
+          .createHmac('sha256', razorpayConfig.keySecret)
+          .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+          .digest('hex');
+
+        if (expectedSignature !== razorpay_signature && config.env !== 'development') {
+          throw new AppError('Payment verification failed', 400);
+        }
       }
 
       const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
@@ -280,7 +287,8 @@ router.post('/webhook', async (req: Request, res: Response, next: NextFunction) 
   try {
     const signature = req.headers['x-razorpay-signature'] as string;
     const body = JSON.stringify(req.body);
-    const expectedSig = crypto.createHmac('sha256', config.razorpay.webhookSecret).update(body).digest('hex');
+    const razorpayConfig = await getRazorpayConfig();
+    const expectedSig = crypto.createHmac('sha256', razorpayConfig.webhookSecret).update(body).digest('hex');
 
     if (signature !== expectedSig) {
       return res.status(400).json({ success: false, message: 'Invalid webhook signature' });

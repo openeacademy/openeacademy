@@ -55,7 +55,7 @@ export default function SubscriptionPage() {
   const handleSubscribe = (planId: string) => {
     if (!isAuthenticated) {
       toast.error('Please login to subscribe');
-      navigate('/login');
+      navigate(`/login?redirect=/checkout/${planId}`);
       return;
     }
     navigate(`/checkout/${planId}`);

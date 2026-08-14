@@ -211,15 +211,23 @@ router.post(
   authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
   [
     body('name').trim().notEmpty().withMessage('Exam name is required'),
-    body('slug').trim().notEmpty().matches(/^[a-z0-9-]+$/).withMessage('Slug must be lowercase alphanumeric with hyphens'),
+    body('slug').trim().notEmpty(),
   ],
   validate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { seo, subjects, ...raw } = req.body;
+      const examData = sanitizeExamData(raw);
+      let finalSlug = examData.slug || `exam-${Date.now()}`;
+      const exists = await prisma.exam.findUnique({ where: { slug: finalSlug } });
+      if (exists) {
+        finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+      }
+      
       const exam = await prisma.exam.create({
         data: {
-          ...sanitizeExamData(raw),
+          ...examData,
+          slug: finalSlug,
           ...(seo && {
             seo: {
               create: {
@@ -239,7 +247,8 @@ router.post(
       if (Array.isArray(subjects) && subjects.length > 0) {
         for (const sub of subjects) {
           if (typeof sub === 'string' && sub.trim()) {
-            const subSlug = `${exam.slug}-${sub.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+            const sanitizedSubSlug = sub.toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s_-]/gu, '').replace(/[\s_]+/g, '-').replace(/^-+|-+$/g, '');
+            const subSlug = `${exam.slug}-${sanitizedSubSlug}`;
             await prisma.subject.upsert({
               where: { examId_slug: { examId: exam.id, slug: subSlug } },
               update: {},
@@ -264,10 +273,20 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { seo, subjects, ...raw } = req.body;
+      const examData = sanitizeExamData(raw);
+      let finalSlug = examData.slug;
+      if (finalSlug) {
+        const exists = await prisma.exam.findUnique({ where: { slug: finalSlug } });
+        if (exists && exists.id !== req.params.id) {
+          finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+        }
+        examData.slug = finalSlug;
+      }
+
       const exam = await prisma.exam.update({
         where: { id: req.params.id },
         data: {
-          ...sanitizeExamData(raw),
+          ...examData,
           ...(seo && {
             seo: {
               upsert: {

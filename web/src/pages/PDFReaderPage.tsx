@@ -2,9 +2,10 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Lock, Maximize2, ZoomIn, ZoomOut, Moon, Sun, Bookmark, ChevronLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Lock, Maximize2, ZoomIn, ZoomOut, Moon, Sun, Bookmark, ChevronLeft, Mail, Phone, X } from 'lucide-react';
 import { apiGet, apiPatch, apiPost } from '../lib/api';
 import { useUIStore } from '../stores/uiStore';
+import { useAuthStore } from '../stores/authStore';
 import type { PDF } from '../types';
 import toast from 'react-hot-toast';
 
@@ -157,6 +158,7 @@ export default function PDFReaderPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { openSubscriptionModal } = useUIStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [zoom, setZoom] = useState(100);
@@ -164,6 +166,51 @@ export default function PDFReaderPage() {
   const [isLocked, setIsLocked] = useState(false);
   const [pageInput, setPageInput] = useState('1');
   const [lastValidStream, setLastValidStream] = useState<StreamData | null>(null);
+
+  // Contact capture modal state
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactInput, setContactInput] = useState('');
+  const [contactType, setContactType] = useState<'email' | 'mobile'>('email');
+  const [captureSubmitting, setCaptureSubmitting] = useState(false);
+  const [captureComplete, setCaptureComplete] = useState(false);
+
+  // Check if user is authenticated; if not, redirect to login with redirect back
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate(`/login?redirect=${encodeURIComponent(`/read/${slug}`)}`, { replace: true });
+    }
+  }, [isAuthenticated, slug, navigate]);
+
+  // Check if contact info is needed (only for unauthenticated OR users without email/mobile)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const alreadyHasContact = user?.email || user?.mobile;
+    const leadCaptured = localStorage.getItem(`lead_captured_${slug}`);
+    if (!alreadyHasContact && !leadCaptured) {
+      setShowContactModal(true);
+    } else {
+      setCaptureComplete(true);
+    }
+  }, [isAuthenticated, user, slug]);
+
+  const handleContactSubmit = async () => {
+    if (!contactInput.trim()) return;
+    setCaptureSubmitting(true);
+    try {
+      await apiPost('/auth/capture-lead', { contact: contactInput.trim(), pdfSlug: slug });
+      localStorage.setItem(`lead_captured_${slug}`, '1');
+      setShowContactModal(false);
+      setCaptureComplete(true);
+      toast.success('Thank you! Enjoy reading.');
+    } catch {
+      // Even on error, allow reading
+      localStorage.setItem(`lead_captured_${slug}`, '1');
+      setShowContactModal(false);
+      setCaptureComplete(true);
+    } finally {
+      setCaptureSubmitting(false);
+    }
+  };
 
   // Get PDF metadata
   const { data: pdfData } = useQuery({
@@ -226,7 +273,77 @@ export default function PDFReaderPage() {
 
   return (
     <div className={`min-h-screen flex flex-col ${nightMode ? 'bg-gray-900' : 'bg-gray-100'} transition-colors duration-300`}>
+
+      {/* Contact Capture Modal */}
+      <AnimatePresence>
+        {showContactModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8"
+            >
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Mail className="w-8 h-8 text-primary-600" />
+                </div>
+                <h2 className="text-xl font-black text-gray-900 mb-1">Get Free Access</h2>
+                <p className="text-sm text-gray-500">Enter your contact to start reading the free preview pages</p>
+              </div>
+
+              {/* Toggle email/mobile */}
+              <div className="flex gap-2 mb-4 bg-gray-100 rounded-xl p-1">
+                <button
+                  onClick={() => setContactType('email')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${contactType === 'email' ? 'bg-white shadow text-primary-700' : 'text-gray-500'}`}
+                >
+                  <Mail className="w-3.5 h-3.5" /> Email
+                </button>
+                <button
+                  onClick={() => setContactType('mobile')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${contactType === 'mobile' ? 'bg-white shadow text-primary-700' : 'text-gray-500'}`}
+                >
+                  <Phone className="w-3.5 h-3.5" /> Mobile
+                </button>
+              </div>
+
+              <input
+                type={contactType === 'email' ? 'email' : 'tel'}
+                placeholder={contactType === 'email' ? 'your@email.com' : '10-digit mobile number'}
+                value={contactInput}
+                onChange={e => setContactInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleContactSubmit()}
+                className="input w-full mb-4"
+                autoFocus
+              />
+
+              <button
+                onClick={handleContactSubmit}
+                disabled={captureSubmitting || !contactInput.trim()}
+                className="btn-primary w-full justify-center py-3 font-bold disabled:opacity-50"
+              >
+                {captureSubmitting ? 'Please wait...' : 'Start Reading Free Pages'}
+              </button>
+              <button
+                onClick={() => { setShowContactModal(false); setCaptureComplete(true); }}
+                className="w-full text-center text-xs text-gray-400 hover:text-gray-600 mt-3"
+              >
+                Skip for now
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top bar */}
+
       <header className={`${nightMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b px-4 py-3 flex items-center gap-4 sticky top-0 z-20`}>
         <button onClick={() => navigate(-1)} className={`${nightMode ? 'text-gray-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'} transition-colors`}>
           <ChevronLeft className="w-5 h-5" />
@@ -295,7 +412,7 @@ export default function PDFReaderPage() {
               key="locked-container"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="relative flex items-center justify-center w-full min-h-[600px]"
+              className="relative flex items-center justify-center w-full h-full min-h-[450px] md:min-h-[600px] py-8"
             >
               {/* Blurred Canvas Document Preview in Background */}
               {lastValidStream?.signedUrl && (
@@ -316,15 +433,15 @@ export default function PDFReaderPage() {
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 className="relative z-20 w-full max-w-md p-1"
               >
-                <div className="card p-8 text-center shadow-2xl bg-white/90 backdrop-blur-xl border border-amber-200/60 rounded-3xl">
-                  <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-5 text-amber-600 shadow-inner">
-                    <Lock className="w-8 h-8 text-amber-500 animate-pulse" />
+                <div className="card p-6 md:p-8 text-center shadow-2xl bg-white/90 backdrop-blur-xl border border-amber-200/60 rounded-3xl">
+                  <div className="w-14 h-14 md:w-16 md:h-16 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-5 text-amber-600 shadow-inner">
+                    <Lock className="w-7 h-7 md:w-8 md:h-8 text-amber-500 animate-pulse" />
                   </div>
-                  <h2 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Unlock Full Document</h2>
+                  <h2 className="text-xl md:text-2xl font-black text-gray-900 mb-2 tracking-tight">Unlock Full Document</h2>
                   <p className="text-gray-600 text-sm mb-3">
                     You've reached page <span className="font-bold text-gray-900">{currentPage}</span> of the free preview.
                   </p>
-                  <div className="bg-amber-50 border border-amber-200/70 rounded-2xl p-3 mb-6 text-xs text-amber-800 flex items-center justify-center gap-2">
+                  <div className="bg-amber-50 border border-amber-200/70 rounded-2xl p-2 md:p-3 mb-5 md:mb-6 text-[11px] md:text-xs text-amber-800 flex items-center justify-center gap-1 md:gap-2">
                     <span className="font-bold">Limit:</span> {stream?.freePreviewPages || pdf?.freePreviewPages || 3} free preview pages • {pdf?.totalPages ? pdf.totalPages - (pdf.freePreviewPages || 3) : 0} premium pages locked
                   </div>
                   <button

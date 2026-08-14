@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
+import { apiGet } from './lib/api';
 
 // Layouts
 import MainLayout from './layouts/MainLayout';
@@ -24,6 +25,7 @@ const QuizPage = lazy(() => import('./pages/QuizPage'));
 const QuizResultPage = lazy(() => import('./pages/QuizResultPage'));
 const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage'));
 const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
+const WebviewCheckout = lazy(() => import('./pages/WebviewCheckout'));
 const DashboardPage = lazy(() => import('./pages/dashboard/DashboardPage'));
 const ProfilePage = lazy(() => import('./pages/dashboard/ProfilePage'));
 const BookmarksPage = lazy(() => import('./pages/dashboard/BookmarksPage'));
@@ -63,6 +65,18 @@ function SharedLayout() {
 }
 
 export default function App() {
+  const { isAuthenticated, updateUser } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      apiGet<any>('/auth/me')
+        .then((res) => {
+          if (res.data) updateUser(res.data);
+        })
+        .catch(console.error);
+    }
+  }, [isAuthenticated, updateUser]);
+
   return (
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
@@ -90,8 +104,11 @@ export default function App() {
             <Route path="forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
           </Route>
 
-          {/* Protected — PDF reader (full screen, no main layout) */}
-          <Route path="read/:slug" element={<ProtectedRoute><PDFReaderPage /></ProtectedRoute>} />
+          {/* PDF reader — handles auth check internally to preserve redirect slug */}
+          <Route path="read/:slug" element={<PDFReaderPage />} />
+
+          {/* Mobile Webview Checkout */}
+          <Route path="webview-checkout/:planId" element={<WebviewCheckout />} />
 
           {/* Protected — Quiz */}
           <Route path="quiz/:slug" element={<ProtectedRoute><QuizPage /></ProtectedRoute>} />

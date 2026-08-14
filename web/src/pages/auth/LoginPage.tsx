@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,6 +22,8 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const { register, handleSubmit, formState: { errors }, setError } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -33,7 +35,7 @@ export default function LoginPage() {
       const result = await apiPost<{ accessToken: string; refreshToken: string; user: any }>('/auth/login', data);
       login(result.data.user, result.data.accessToken, result.data.refreshToken);
       toast.success(`Welcome back, ${result.data.user.name}!`);
-      navigate('/dashboard');
+      navigate(redirectTo, { replace: true });
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Login failed';
       setError('identifier', { message: msg });
@@ -114,7 +116,12 @@ export default function LoginPage() {
 
       <p className="text-center text-sm text-gray-500 mt-6">
         Don't have an account?{' '}
-        <Link to="/register" className="text-primary-600 font-semibold hover:underline">Create one free</Link>
+        <Link
+          to={searchParams.get('redirect') ? `/register?redirect=${encodeURIComponent(searchParams.get('redirect')!)}` : '/register'}
+          className="text-primary-600 font-semibold hover:underline"
+        >
+          Create one free
+        </Link>
       </p>
     </motion.div>
   );

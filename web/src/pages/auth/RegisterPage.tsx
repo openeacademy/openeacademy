@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -37,6 +37,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/dashboard';
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -55,7 +57,8 @@ export default function RegisterPage() {
         password: data.password,
       });
       toast.success('Account created! Please verify your email.');
-      navigate('/login');
+      // Navigate to login preserving any redirect param
+      navigate(redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : '/login');
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Registration failed');
     } finally {
@@ -152,7 +155,7 @@ export default function RegisterPage() {
       </form>
 
       <p className="text-center text-sm text-gray-500 mt-6">
-        Already have an account? <Link to="/login" className="text-primary-600 font-semibold hover:underline">Sign in</Link>
+        Already have an account? <Link to={redirectTo !== '/dashboard' ? `/login?redirect=${encodeURIComponent(redirectTo)}` : '/login'} className="text-primary-600 font-semibold hover:underline">Sign in</Link>
       </p>
     </motion.div>
   );

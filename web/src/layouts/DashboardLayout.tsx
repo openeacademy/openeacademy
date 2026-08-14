@@ -4,11 +4,21 @@ import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const sidebarLinks = [
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '../lib/api';
+
+type SidebarLink = {
+  icon: any;
+  label: string;
+  path: string;
+  requiredFeature?: string;
+};
+
+const sidebarLinks: SidebarLink[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
-  { icon: BookOpen, label: 'My Exams', path: '/exams' },
-  { icon: FileText, label: 'PDF Library', path: '/pdfs' },
-  { icon: Trophy, label: 'Quiz Bank', path: '/quizzes' },
+  { icon: BookOpen, label: 'My Exams', path: '/exams', requiredFeature: 'access_all_exams' },
+  { icon: FileText, label: 'PDF Library', path: '/pdfs', requiredFeature: 'access_all_pdfs' },
+  { icon: Trophy, label: 'Quiz Bank', path: '/quizzes', requiredFeature: 'access_all_quizzes' },
   { icon: Bookmark, label: 'Bookmarks', path: '/dashboard/bookmarks' },
   { icon: History, label: 'Quiz History', path: '/dashboard/quiz-history' },
   { icon: Zap, label: 'Subscription Plans', path: '/subscriptions' },
@@ -22,6 +32,18 @@ export default function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+
+  const { data: dashboardData } = useQuery({
+    queryKey: ['user-dashboard'],
+    queryFn: () => apiGet<any>('/user/dashboard'),
+  });
+
+  const features = dashboardData?.data?.activeSubscription?.plan?.features || [];
+
+  const visibleLinks = sidebarLinks.filter(link => {
+    if (!link.requiredFeature) return true;
+    return features.includes(link.requiredFeature);
+  });
 
   const handleLogout = () => {
     logout();
@@ -71,7 +93,7 @@ export default function DashboardLayout() {
 
             {/* Nav links */}
             <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-              {sidebarLinks.map(({ icon: Icon, label, path }) => (
+              {visibleLinks.map(({ icon: Icon, label, path }) => (
                 <NavLink
                   key={path}
                   to={path}

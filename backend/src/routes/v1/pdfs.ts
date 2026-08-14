@@ -368,9 +368,19 @@ router.post(
     try {
       const { fileUrl, s3Key, ...raw } = req.body;
       const key = s3Key || fileUrl || `pdfs/${uuidv4()}.pdf`;
+      const sanitized = sanitizePdfData(raw);
+      let finalSlug = sanitized.slug;
+      if (finalSlug) {
+        const exists = await prisma.pDF.findUnique({ where: { slug: finalSlug } });
+        if (exists) {
+          finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+        }
+      }
+
       const pdf = await prisma.pDF.create({
         data: {
-          ...sanitizePdfData(raw),
+          ...sanitized,
+          ...(finalSlug && { slug: finalSlug }),
           s3Key: key,
           totalPages: Number(raw.totalPages) || 1,
           fileSize: Number(raw.fileSize) || 102400,
@@ -419,9 +429,15 @@ router.post(
       const s3Key = `pdfs/${uuidv4()}-${Date.now()}.pdf`;
       await uploadFile({ key: s3Key, buffer: req.file.buffer, contentType: 'application/pdf' });
 
+      let finalSlug = slug;
+      const exists = await prisma.pDF.findUnique({ where: { slug: finalSlug } });
+      if (exists) {
+        finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+      }
+
       const pdf = await prisma.pDF.create({
         data: {
-          title, slug, description, examId: examId || null, subjectId: subjectId || null,
+          title, slug: finalSlug, description, examId: examId || null, subjectId: subjectId || null,
           s3Key, fileSize: req.file.size, totalPages: actualTotalPages,
           language: language as any,
           freePreviewPages: parseInt(freePreviewPages) || 3,
@@ -455,6 +471,13 @@ router.put(
       if (raw.totalPages !== undefined) updateData.totalPages = Number(raw.totalPages) || 1;
       if (raw.fileSize !== undefined) updateData.fileSize = Number(raw.fileSize) || 102400;
       if (raw.freePreviewPages !== undefined) updateData.freePreviewPages = Number(raw.freePreviewPages) || 0;
+
+      if (updateData.slug) {
+        const exists = await prisma.pDF.findUnique({ where: { slug: updateData.slug } });
+        if (exists && exists.id !== req.params.id) {
+          updateData.slug = `${updateData.slug}-${Date.now().toString().slice(-4)}`;
+        }
+      }
 
       const pdf = await prisma.pDF.update({ where: { id: req.params.id }, data: updateData });
       await cacheDelPattern('pdfs:*');

@@ -88,16 +88,18 @@ export default function SubjectPage() {
             >
               <FileText className="w-4 h-4" /> Study Notes ({pdfs.length})
             </button>
-            <button
-              onClick={() => setActiveTab('quizzes')}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                activeTab === 'quizzes'
-                  ? 'bg-primary-600 text-white shadow-md'
-                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-              }`}
-            >
-              <Trophy className="w-4 h-4" /> Practice Quizzes ({quizzes.length})
-            </button>
+            {quizzes.length > 0 && (
+              <button
+                onClick={() => setActiveTab('quizzes')}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === 'quizzes'
+                    ? 'bg-primary-600 text-white shadow-md'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                <Trophy className="w-4 h-4" /> Practice Quizzes ({quizzes.length})
+              </button>
+            )}
             {topics.length > 0 && (
               <button
                 onClick={() => setActiveTab('topics')}

@@ -459,6 +459,16 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = sanitizeQuizData(req.body);
+      
+      let finalSlug = data.slug;
+      if (finalSlug) {
+        const exists = await prisma.quiz.findUnique({ where: { slug: finalSlug } });
+        if (exists) {
+          finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+        }
+        data.slug = finalSlug;
+      }
+
       const subjectConfigs = req.body.subjectConfigs || [];
       
       const quiz = await prisma.quiz.create({ 
@@ -493,6 +503,16 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = sanitizeQuizData(req.body);
+
+      let finalSlug = data.slug;
+      if (finalSlug) {
+        const exists = await prisma.quiz.findUnique({ where: { slug: finalSlug } });
+        if (exists && exists.id !== req.params.id) {
+          finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+        }
+        data.slug = finalSlug;
+      }
+
       const subjectConfigs = req.body.subjectConfigs;
 
       const updateData: any = { ...data };

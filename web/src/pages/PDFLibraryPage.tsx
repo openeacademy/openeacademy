@@ -26,20 +26,20 @@ function PDFCard({ pdf, index }: { pdf: PDF; index: number }) {
       transition={{ delay: index * 0.04 }}
       className="card overflow-hidden group hover:-translate-y-1 transition-all duration-200"
     >
-      {/* Thumbnail */}
-      <div className="relative h-40 bg-gradient-to-br from-primary-50 to-blue-50 overflow-hidden">
+      {/* Thumbnail — full cover display with portrait aspect ratio */}
+      <div className="relative aspect-[3/4] bg-white border-b border-gray-100 overflow-hidden flex items-center justify-center">
         {pdf.thumbnailUrl ? (
           <img 
             src={resolvePublicUrl(pdf.thumbnailUrl)} 
             alt={pdf.title} 
-            className="w-full h-full object-cover" 
+            className="w-full h-full object-contain" 
             onError={(e) => {
               // Fallback if image load fails
               (e.target as HTMLElement).style.display = 'none';
             }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50">
             <FileText className="w-12 h-12 text-primary-200" />
           </div>
         )}
@@ -83,12 +83,12 @@ function PDFCard({ pdf, index }: { pdf: PDF; index: number }) {
               {pdf.requiresSubscription ? `Preview (${pdf.freePreviewPages} pages)` : 'Read'}
             </Link>
           ) : (
-            <button
-              onClick={() => openSubscriptionModal({ pdfId: pdf.id })}
+            <Link
+              to={`/login?redirect=${encodeURIComponent(`/read/${pdf.slug}`)}`}
               className="btn-secondary flex-1 justify-center text-xs py-2"
             >
               <Lock className="w-3.5 h-3.5" /> Login to Read
-            </button>
+            </Link>
           )}
           {pdf.allowDownload && isAuthenticated && (
             <button 

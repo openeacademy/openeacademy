@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from '../lib/api';
+import { generateSlug } from '../lib/utils';
 import AdminTableHeader from '../components/shared/AdminTableHeader';
 import AdminPagination from '../components/shared/AdminPagination';
 import SlideDrawer from '../components/shared/SlideDrawer';
@@ -85,8 +86,10 @@ export default function ExamsPage() {
   };
   const closeDrawer = () => { setDrawerOpen(false); setEditingExam(null); };
 
-  const handleNameChange = (name: string) => setFormData(prev => ({
-    ...prev, name, slug: editingExam ? prev.slug : name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+  const handleNameChange = (name: string) => setFormData(prev => ({ 
+    ...prev, 
+    name, 
+    slug: editingExam ? prev.slug : generateSlug(name),
   }));
 
   const handleSave = (isDraft: boolean) => {

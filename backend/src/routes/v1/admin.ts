@@ -3,7 +3,8 @@ import { body } from 'express-validator';
 import prisma from '../../config/database';
 import { validate } from '../../middleware/validate';
 import { authenticate, authorize } from '../../middleware/auth';
-import { sendSuccess, sendPaginated } from '../../utils/response';
+import { sendSuccess, sendPaginated, sendError } from '../../utils/response';
+import { testEmailConfig } from '../../utils/email';
 import { NotFoundError } from '../../utils/errors';
 import { UserRole, UserStatus } from '@prisma/client';
 import { imageUpload } from '../../middleware/upload';
@@ -290,7 +291,10 @@ router.post('/coupons', [
   body('value').isFloat({ min: 0 }),
 ], validate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const coupon = await prisma.coupon.create({ data: { ...req.body, code: req.body.code.toUpperCase() } });
+    const data = { ...req.body, code: req.body.code.toUpperCase() };
+    if (data.expiresAt) data.expiresAt = new Date(data.expiresAt).toISOString();
+    delete data.description;
+    const coupon = await prisma.coupon.create({ data });
     return sendSuccess(res, coupon, 'Coupon created');
   } catch (err) {
     next(err);
@@ -299,7 +303,10 @@ router.post('/coupons', [
 
 router.put('/coupons/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const coupon = await prisma.coupon.update({ where: { id: req.params.id }, data: req.body });
+    const data = { ...req.body };
+    if (data.expiresAt) data.expiresAt = new Date(data.expiresAt).toISOString();
+    delete data.description;
+    const coupon = await prisma.coupon.update({ where: { id: req.params.id }, data });
     return sendSuccess(res, coupon, 'Coupon updated');
   } catch (err) {
     next(err);
@@ -330,7 +337,121 @@ router.get('/logs', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// App Settings
+// ─── System Settings (Email & Payment) ───────────────────────────────────────
+
+// GET /admin/settings/email — fetch current email config (mask password)
+router.get('/settings/email', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const keys = ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass', 'email_from'];
+    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const map: Record<string, string> = {};
+    for (const s of settings) {
+      // Mask password
+      map[s.key] = s.key === 'smtp_pass' ? (s.value ? '••••••••' : '') : s.value;
+    }
+    // Fill defaults from env if not in DB
+    const result = {
+      smtp_host: map['smtp_host'] || process.env.SMTP_HOST || '',
+      smtp_port: map['smtp_port'] || process.env.SMTP_PORT || '587',
+      smtp_secure: map['smtp_secure'] || (process.env.SMTP_SECURE || 'false'),
+      smtp_user: map['smtp_user'] || process.env.SMTP_USER || '',
+      smtp_pass: map['smtp_pass'] || (process.env.SMTP_PASS ? '••••••••' : ''),
+      email_from: map['email_from'] || process.env.EMAIL_FROM || 'Open E Academy <noreply@openacademy.in>',
+    };
+    return sendSuccess(res, result);
+  } catch (err) { next(err); }
+});
+
+// PUT /admin/settings/email — save email config to DB
+router.put('/settings/email', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, email_from } = req.body;
+    if (!smtp_host || !smtp_user) return sendError(res, 'SMTP host and user are required', 400);
+
+    const updaterId = (req as any).user?.userId;
+    const upsert = async (key: string, value: string, isSecret = false) => {
+      if (key === 'smtp_pass' && value === '••••••••') return; // Don't overwrite with masked placeholder
+      await (prisma as any).systemSetting.upsert({
+        where: { key },
+        update: { value, updatedBy: updaterId },
+        create: { key, value, isSecret, updatedBy: updaterId },
+      });
+    };
+
+    await upsert('smtp_host', smtp_host);
+    await upsert('smtp_port', String(smtp_port || 587));
+    await upsert('smtp_secure', String(smtp_secure || false));
+    await upsert('smtp_user', smtp_user);
+    if (smtp_pass && smtp_pass !== '••••••••') await upsert('smtp_pass', smtp_pass, true);
+    if (email_from) await upsert('email_from', email_from);
+
+    return sendSuccess(res, null, 'Email settings saved successfully');
+  } catch (err) { next(err); }
+});
+
+// GET /admin/settings/payment — fetch current payment config (mask secrets)
+router.get('/settings/payment', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const keys = ['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'];
+    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const map: Record<string, string> = {};
+    for (const s of settings) {
+      if (s.key === 'razorpay_key_secret' || s.key === 'razorpay_webhook_secret') {
+        map[s.key] = s.value ? '••••••••' : '';
+      } else {
+        map[s.key] = s.value;
+      }
+    }
+    const result = {
+      razorpay_key_id: map['razorpay_key_id'] || '',
+      razorpay_key_secret: map['razorpay_key_secret'] || '',
+      razorpay_webhook_secret: map['razorpay_webhook_secret'] || '',
+    };
+    return sendSuccess(res, result);
+  } catch (err) { next(err); }
+});
+
+// PUT /admin/settings/payment — save payment config to DB
+router.put('/settings/payment', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret } = req.body;
+    
+    const updaterId = (req as any).user?.userId;
+    const upsert = async (key: string, value: string, isSecret = false) => {
+      if ((key === 'razorpay_key_secret' || key === 'razorpay_webhook_secret') && value === '••••••••') return; 
+      await (prisma as any).systemSetting.upsert({
+        where: { key },
+        update: { value, updatedBy: updaterId },
+        create: { key, value, isSecret, updatedBy: updaterId },
+      });
+    };
+
+    if (razorpay_key_id !== undefined) await upsert('razorpay_key_id', razorpay_key_id);
+    if (razorpay_key_secret && razorpay_key_secret !== '••••••••') await upsert('razorpay_key_secret', razorpay_key_secret, true);
+    if (razorpay_webhook_secret && razorpay_webhook_secret !== '••••••••') await upsert('razorpay_webhook_secret', razorpay_webhook_secret, true);
+
+    return sendSuccess(res, null, 'Payment settings saved successfully');
+  } catch (err) { next(err); }
+});
+
+// POST /admin/settings/email/test — send a test email
+router.post('/settings/email/test', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { testTo } = req.body;
+    if (!testTo) return sendError(res, 'Test email address required', 400);
+
+    const success = await testEmailConfig(testTo);
+    if (success) {
+      return sendSuccess(res, null, `Test email sent successfully to ${testTo}`);
+    } else {
+      return sendError(res, 'Failed to send test email. Check your SMTP configuration.', 500);
+    }
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── App Settings ────────────────────────────────────────────────────────────
 router.get('/settings', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const settings = await prisma.appSetting.findMany({ orderBy: [{ group: 'asc' }, { key: 'asc' }] });
@@ -685,6 +806,118 @@ router.delete('/plans/:id', authorize(UserRole.SUPER_ADMIN), async (req: Request
   try {
     await prisma.subscriptionPlan.update({ where: { id: req.params.id }, data: { isActive: false } });
     return sendSuccess(res, null, 'Plan deactivated');
+  } catch (err) { next(err); }
+});
+
+// ─── Email Settings ────────────────────────────────────────────────────────────
+
+// GET /admin/settings/email — fetch current email config (mask password)
+router.get('/settings/email', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const keys = ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass', 'email_from'];
+    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const map: Record<string, string> = {};
+    for (const s of settings) {
+      // Mask password
+      map[s.key] = s.key === 'smtp_pass' ? (s.value ? '••••••••' : '') : s.value;
+    }
+    // Fill defaults from env if not in DB
+    const result = {
+      smtp_host: map['smtp_host'] || process.env.SMTP_HOST || '',
+      smtp_port: map['smtp_port'] || process.env.SMTP_PORT || '587',
+      smtp_secure: map['smtp_secure'] || (process.env.SMTP_SECURE || 'false'),
+      smtp_user: map['smtp_user'] || process.env.SMTP_USER || '',
+      smtp_pass: map['smtp_pass'] || (process.env.SMTP_PASS ? '••••••••' : ''),
+      email_from: map['email_from'] || process.env.EMAIL_FROM || 'Open E Academy <noreply@openacademy.in>',
+    };
+    return sendSuccess(res, result);
+  } catch (err) { next(err); }
+});
+
+// PUT /admin/settings/email — save email config to DB
+router.put('/settings/email', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, email_from } = req.body;
+    if (!smtp_host || !smtp_user) return sendError(res, 'SMTP host and user are required', 400);
+
+    const updaterId = (req as any).user?.userId;
+    const upsert = async (key: string, value: string, isSecret = false) => {
+      if (key === 'smtp_pass' && value === '••••••••') return; // Don't overwrite with masked placeholder
+      await (prisma as any).systemSetting.upsert({
+        where: { key },
+        update: { value, updatedBy: updaterId },
+        create: { key, value, isSecret, updatedBy: updaterId },
+      });
+    };
+
+    await upsert('smtp_host', smtp_host);
+    await upsert('smtp_port', String(smtp_port || 587));
+    await upsert('smtp_secure', String(smtp_secure || false));
+    await upsert('smtp_user', smtp_user);
+    if (smtp_pass && smtp_pass !== '••••••••') await upsert('smtp_pass', smtp_pass, true);
+    if (email_from) await upsert('email_from', email_from);
+
+    return sendSuccess(res, null, 'Email settings saved successfully');
+  } catch (err) { next(err); }
+});
+
+// GET /admin/settings/payment — fetch current payment config (mask secrets)
+router.get('/settings/payment', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const keys = ['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'];
+    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const map: Record<string, string> = {};
+    for (const s of settings) {
+      if (s.key === 'razorpay_key_secret' || s.key === 'razorpay_webhook_secret') {
+        map[s.key] = s.value ? '••••••••' : '';
+      } else {
+        map[s.key] = s.value;
+      }
+    }
+    const result = {
+      razorpay_key_id: map['razorpay_key_id'] || '',
+      razorpay_key_secret: map['razorpay_key_secret'] || '',
+      razorpay_webhook_secret: map['razorpay_webhook_secret'] || '',
+    };
+    return sendSuccess(res, result);
+  } catch (err) { next(err); }
+});
+
+// PUT /admin/settings/payment — save payment config to DB
+router.put('/settings/payment', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret } = req.body;
+    
+    const updaterId = (req as any).user?.userId;
+    const upsert = async (key: string, value: string, isSecret = false) => {
+      if ((key === 'razorpay_key_secret' || key === 'razorpay_webhook_secret') && value === '••••••••') return; 
+      await (prisma as any).systemSetting.upsert({
+        where: { key },
+        update: { value, updatedBy: updaterId },
+        create: { key, value, isSecret, updatedBy: updaterId },
+      });
+    };
+
+    if (razorpay_key_id !== undefined) await upsert('razorpay_key_id', razorpay_key_id);
+    if (razorpay_key_secret && razorpay_key_secret !== '••••••••') await upsert('razorpay_key_secret', razorpay_key_secret, true);
+    if (razorpay_webhook_secret && razorpay_webhook_secret !== '••••••••') await upsert('razorpay_webhook_secret', razorpay_webhook_secret, true);
+
+    return sendSuccess(res, null, 'Payment settings saved successfully');
+  } catch (err) { next(err); }
+});
+
+// POST /admin/settings/email/test — send a test email
+router.post('/settings/email/test', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { testTo } = req.body;
+    if (!testTo) return sendError(res, 'Test recipient email is required', 400);
+
+    const result = await testEmailConfig(testTo);
+    if (result.success) {
+      return sendSuccess(res, null, `Test email sent to ${testTo}`);
+    } else {
+      return sendError(res, `Email delivery failed: ${result.error}`, 500);
+    }
   } catch (err) { next(err); }
 });
 

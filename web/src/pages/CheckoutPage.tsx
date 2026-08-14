@@ -13,6 +13,17 @@ declare global {
   }
 }
 
+const loadRazorpay = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const durationLabel: Record<string, string> = {
   ONE_MONTH: '1 Month Access',
   THREE_MONTHS: '3 Months Access',
@@ -91,11 +102,6 @@ export default function CheckoutPage() {
     onSuccess: (data) => {
       const { orderId, amount, keyId, paymentId } = data.data;
 
-      if (!window.Razorpay) {
-        toast.error('Razorpay payment gateway failed to load. Please refresh.');
-        return;
-      }
-
       const options = {
         key: keyId || 'rzp_test_demo',
         amount,
@@ -136,12 +142,20 @@ export default function CheckoutPage() {
     },
   });
 
-  const handleProceedPayment = () => {
+  const handleProceedPayment = async () => {
     if (!isAuthenticated) {
       toast.error('Please login to complete your purchase');
       navigate('/login');
       return;
     }
+    
+    // Load script on demand
+    const isLoaded = await loadRazorpay();
+    if (!isLoaded) {
+      toast.error('Razorpay payment gateway failed to load. Please check your connection or disable adblockers.');
+      return;
+    }
+    
     createOrderMutation.mutate();
   };
 

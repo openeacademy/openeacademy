@@ -830,3 +830,16 @@ model FileStorage {
 
   @@map("file_storage")
 }
+
+// ─── System Settings (key-value store for admin-configurable options) ───────
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  isSecret    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("system_settings")
+}

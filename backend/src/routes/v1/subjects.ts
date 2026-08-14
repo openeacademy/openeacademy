@@ -140,15 +140,28 @@ router.post(
   [
     body('examId').notEmpty().withMessage('Exam ID required'),
     body('name').trim().notEmpty(),
-    body('slug').trim().notEmpty().matches(/^[a-z0-9-]+$/),
+    body('slug').trim().notEmpty(),
   ],
   validate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { topics, ...raw } = req.body;
+      const sanitized = sanitizeSubjectData(raw);
+
+      // Ensure slug is unique within this exam — auto-suffix if collision
+      let finalSlug = sanitized.slug;
+      const exists = await prisma.subject.findFirst({
+        where: { examId: sanitized.examId, slug: finalSlug },
+      });
+      if (exists) {
+        // Auto-append a short suffix to make it unique
+        finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+      }
+
       const subject = await prisma.subject.create({
         data: {
-          ...sanitizeSubjectData(raw),
+          ...sanitized,
+          slug: finalSlug,
           ...(Array.isArray(topics) && topics.length > 0 && {
             topics: {
               create: topics.map((t: any, idx: number) => ({
@@ -170,6 +183,7 @@ router.post(
   }
 );
 
+
 router.put(
   '/:id',
   authenticate,
@@ -179,11 +193,28 @@ router.put(
       const { topics, ...raw } = req.body;
 
       // Update subject fields
+      const sanitized = sanitizeSubjectData(raw);
+      let finalSlug = sanitized.slug;
+      if (finalSlug) {
+        // Find existing subject with this slug in the same exam
+        const targetExamId = sanitized.examId || (await prisma.subject.findUnique({where: {id: req.params.id}}))?.examId;
+        if (targetExamId) {
+          const exists = await prisma.subject.findFirst({
+            where: { examId: targetExamId, slug: finalSlug }
+          });
+          if (exists && exists.id !== req.params.id) {
+            finalSlug = `${finalSlug}-${Date.now().toString().slice(-4)}`;
+          }
+        }
+        sanitized.slug = finalSlug;
+      }
+
       const subject = await prisma.subject.update({
         where: { id: req.params.id },
-        data: sanitizeSubjectData(raw),
+        data: sanitized,
+        include: { exam: true, topics: true, _count: { select: { topics: true, pdfs: true, quizzes: true } } },
       });
-
+      
       // Synchronize inline topics if array provided
       if (Array.isArray(topics)) {
         for (const t of topics) {

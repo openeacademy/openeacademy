@@ -308,21 +308,25 @@ router.post(
     try {
       const { contact } = req.body;
       const user = await prisma.user.findFirst({ where: { OR: [{ email: contact }, { mobile: contact }] } });
-      // Always return success to prevent user enumeration
       if (user) {
         const otp = generateOtp();
         const expiresAt = new Date(Date.now() + config.otp.expiryMinutes * 60 * 1000);
         await prisma.otp.create({ data: { userId: user.id, contact, type: 'PASSWORD_RESET', code: otp, expiresAt } });
         if (contact.includes('@')) {
-          await sendEmail({ to: contact, subject: 'Reset Password — Open E Academy', html: otpEmailTemplate(otp, user.name) });
+          const result = await sendEmail({ to: contact, subject: 'Reset Password — Open E Academy', html: otpEmailTemplate(otp, user.name) });
+          if (!result.success) {
+            return sendError(res, 'Failed to send OTP. Please check your email address or try again later.', 500);
+          }
         }
       }
-      return sendSuccess(res, null, 'If the account exists, a reset code has been sent');
+      // Return success even if user not found (prevent user enumeration)
+      return sendSuccess(res, { expiryMinutes: config.otp.expiryMinutes }, 'If the account exists, a reset code has been sent');
     } catch (err) {
       next(err);
     }
   },
 );
+
 
 /**
  * @swagger
@@ -426,6 +430,37 @@ router.delete('/sessions/:id', authenticate, async (req: Request, res: Response,
     return sendSuccess(res, null, 'Session revoked');
   } catch (err) {
     next(err);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/auth/capture-lead:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Capture contact info (email/mobile) for free PDF preview access tracking
+ */
+router.post('/capture-lead', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { contact, pdfSlug } = req.body;
+    if (!contact) return sendError(res, 'Contact is required', 400);
+
+    // Store as system setting key or generic capture — use OTP table temporarily with a special type
+    // This is a lightweight capture — no verification needed for leads
+    const isEmail = contact.includes('@');
+    await prisma.otp.create({
+      data: {
+        contact,
+        type: 'LEAD_CAPTURE' as any,
+        code: pdfSlug || 'general',
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year expiry
+      },
+    });
+
+    return sendSuccess(res, null, 'Thank you for your interest');
+  } catch (err) {
+    // Non-fatal — just succeed silently
+    return sendSuccess(res, null, 'Captured');
   }
 });
 
