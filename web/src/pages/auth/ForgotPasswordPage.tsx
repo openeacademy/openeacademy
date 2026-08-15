@@ -21,7 +21,7 @@ export default function ForgotPasswordPage() {
 
   // Resend OTP countdown
   const [resendCountdown, setResendCountdown] = useState(0);
-  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startCountdown = () => {
     setResendCountdown(OTP_RESEND_SECONDS);
