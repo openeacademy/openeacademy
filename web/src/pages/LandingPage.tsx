@@ -7,7 +7,7 @@ import {
   Play, Download, ChevronRight, ChevronLeft, Zap, Shield, Clock, Award, PlayCircle,
   Eye, FileText, BrainCircuit, HelpCircle, File
 } from 'lucide-react';
-import { apiGet } from '../lib/api';
+import { apiGet, resolvePublicUrl } from '../lib/api';
 import type { Exam, SubscriptionPlan, PDF, Quiz } from '../types';
 
 const fadeUp = {
@@ -323,28 +323,54 @@ export default function LandingPage() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className="w-[280px] sm:w-[320px] shrink-0 snap-start"
+                className="w-[180px] sm:w-[200px] shrink-0 snap-start h-[320px]"
               >
                 <HoverCard
                   to={`/read/${pdf.slug}`}
-                  className={`relative overflow-hidden rounded-2xl p-5 flex flex-col h-full group hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md border min-h-[160px] ${cardColorClass}`}
+                  className={`relative overflow-hidden rounded-2xl flex flex-col h-full group hover:-translate-y-1 transition-all duration-300 shadow-sm hover:shadow-md border ${cardColorClass}`}
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/40 rounded-full translate-x-8 -translate-y-8 blur-lg group-hover:scale-110 transition-transform duration-500" />
-                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/40 rounded-full -translate-x-8 translate-y-8 blur-md" />
-                  <div className="relative z-10 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="inline-block px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-wider bg-white/60 uppercase border border-white/50 shadow-sm backdrop-blur-sm">{pdf.subject?.name || 'General'}</span>
-                        <div className="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center shadow-sm group-hover:bg-black/5 transition-colors">
-                          <FileText className="w-4 h-4 opacity-80" />
-                        </div>
+                  {/* ── Cover Thumbnail Area ── */}
+                  <div className="relative w-full h-[180px] flex-shrink-0 flex items-center justify-center bg-white/50 overflow-hidden">
+                    {pdf.thumbnailUrl ? (
+                      <img
+                        src={resolvePublicUrl(pdf.thumbnailUrl)}
+                        alt={pdf.title}
+                        className="w-full h-full object-contain p-2 drop-shadow-md"
+                        onError={(e) => {
+                          const wrapper = (e.currentTarget as HTMLImageElement).parentElement!;
+                          wrapper.innerHTML = `<div class="w-full h-full flex items-center justify-center opacity-25"><svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/><line x1='16' y1='13' x2='8' y2='13'/><line x1='16' y1='17' x2='8' y2='17'/><polyline points='10 9 9 9 8 9'/></svg></div>`;
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center opacity-25">
+                        <FileText className="w-12 h-12" />
                       </div>
-                      <h3 className="font-semibold text-base leading-snug line-clamp-2 mb-4 group-hover:opacity-80 transition-opacity">{pdf.title}</h3>
+                    )}
+                  </div>
+
+                  {/* ── Card Body ── */}
+                  <div className="flex flex-col flex-1 min-h-0 p-3 pt-2.5">
+                    {/* Category + Icon */}
+                    <div className="flex items-center justify-between mb-1.5 flex-shrink-0">
+                      <span className="text-[10px] font-bold tracking-wider uppercase opacity-70 truncate pr-1">{pdf.subject?.name || 'General'}</span>
+                      <FileText className="w-3.5 h-3.5 opacity-40 flex-shrink-0" />
                     </div>
-                    
-                    <div className="flex items-center justify-between opacity-80 text-xs font-medium border-t border-black/10 pt-3 mt-2">
-                      <span className="flex items-center gap-1.5"><Eye className="w-3.5 h-3.5"/> {pdf.viewCount} Views</span>
-                      <span className="flex items-center gap-1.5"><File className="w-3.5 h-3.5"/> {pdf.totalPages} Pages</span>
+
+                    {/* Title — fixed 2-line height, never expands */}
+                    <h3
+                      className="font-semibold text-sm leading-snug group-hover:opacity-75 transition-opacity overflow-hidden flex-1"
+                      style={{
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >{pdf.title}</h3>
+
+                    {/* Divider + Metadata — always pinned to bottom */}
+                    <div className="border-t border-black/10 pt-2 mt-2 flex items-center justify-between text-[10px] font-medium opacity-70 flex-shrink-0">
+                      <span className="flex items-center gap-1"><Eye className="w-3 h-3"/> {pdf.viewCount ?? 0} Views</span>
+                      <span className="flex items-center gap-1"><File className="w-3 h-3"/> {pdf.totalPages ?? '—'} Pages</span>
                     </div>
                   </div>
                 </HoverCard>
@@ -499,7 +525,7 @@ export default function LandingPage() {
             </div>
             {/* Toggle */}
             <div className="mt-8 md:mt-0 bg-gray-50 border border-gray-100 p-1.5 rounded-full flex items-center shadow-sm">
-              <button className="bg-[#633cff] text-white px-8 py-2.5 rounded-full text-sm font-semibold shadow-md transition-colors">Monthly</button>
+              <button className="bg-primary-600 text-white px-8 py-2.5 rounded-full text-sm font-semibold shadow-md transition-colors">Monthly</button>
               <button className="text-gray-500 hover:text-gray-900 px-8 py-2.5 rounded-full text-sm font-semibold transition-colors">Yearly</button>
             </div>
           </div>
@@ -522,16 +548,16 @@ export default function LandingPage() {
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ once: true }}
-                className={`relative rounded-[2rem] p-8 flex flex-col h-full ${isPopular ? 'bg-[#633cff] text-white shadow-2xl scale-105 z-10 py-10' : 'bg-white text-gray-900 border border-gray-100 shadow-sm hover:shadow-md'}`}
+                className={`relative rounded-[2rem] p-8 flex flex-col h-full ${isPopular ? 'bg-primary-600 text-white shadow-2xl scale-105 z-10 py-10 shadow-primary-500/20' : 'bg-white text-gray-900 border border-gray-100 shadow-sm hover:shadow-md'}`}
               >
                 <h3 className={`text-xl font-medium mb-4 ${isPopular ? 'text-white' : 'text-gray-900'}`}>{plan.name}</h3>
                 
                 <div className="flex items-end gap-1 mb-6">
                   <span className={`text-5xl font-semibold tracking-tight ${isPopular ? 'text-white' : 'text-gray-900'}`}>₹{plan.discountedPrice || plan.price}</span>
-                  <span className={`text-sm mb-1 ${isPopular ? 'text-indigo-200' : 'text-gray-400'}`}>/ Month</span>
+                  <span className={`text-sm mb-1 ${isPopular ? 'text-primary-100' : 'text-gray-400'}`}>/ Month</span>
                 </div>
 
-                <p className={`text-sm leading-relaxed mb-8 pr-4 ${isPopular ? 'text-indigo-200' : 'text-gray-500'}`}>
+                <p className={`text-sm leading-relaxed mb-8 pr-4 ${isPopular ? 'text-primary-100' : 'text-gray-500'}`}>
                   {plan.description || 'For most students that want to optimize their preparation.'}
                 </p>
 
@@ -541,10 +567,10 @@ export default function LandingPage() {
                     const formattedF = f.charAt(0).toUpperCase() + f.slice(1).replace(/_/g, ' ').toLowerCase();
                     return (
                     <li key={f} className="flex items-center gap-3 text-sm">
-                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isPopular ? 'bg-white/20' : 'bg-gray-200'}`}>
-                        <Check className={`w-3 h-3 ${isPopular ? 'text-white' : 'text-white'}`} strokeWidth={3} />
+                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isPopular ? 'bg-white/20' : 'bg-primary-50'}`}>
+                        <Check className={`w-3 h-3 ${isPopular ? 'text-white' : 'text-primary-600'}`} strokeWidth={3} />
                       </div>
-                      <span className={isPopular ? 'text-indigo-50' : 'text-gray-600'}>{formattedF}</span>
+                      <span className={isPopular ? 'text-primary-50' : 'text-gray-600'}>{formattedF}</span>
                     </li>
                   )})}
                 </ul>
@@ -553,10 +579,10 @@ export default function LandingPage() {
                   to="/register"
                   className={`block w-full text-center py-3.5 rounded-xl font-medium transition-all mt-auto ${
                     isPopular 
-                      ? 'bg-[#ffd1b3] text-[#633cff] hover:bg-[#ffb07a]' 
+                      ? 'bg-white text-primary-600 hover:bg-primary-50 shadow-md font-semibold' 
                       : isEnterprise 
-                        ? 'bg-[#633cff] text-white hover:bg-indigo-700'
-                        : 'bg-white text-[#633cff] border-2 border-gray-100 hover:border-[#633cff]'
+                        ? 'bg-primary-600 text-white hover:bg-primary-700 font-semibold'
+                        : 'bg-white text-primary-600 border-2 border-gray-100 hover:border-primary-600 hover:bg-primary-50/50'
                   }`}
                 >
                   Choose Plan
