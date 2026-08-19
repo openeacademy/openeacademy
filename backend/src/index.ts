@@ -38,11 +38,18 @@ app.use(helmet({
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || config.cors.origins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS policy violation'));
-    }
+    // Mobile apps (React Native / APK) send requests with no Origin header
+    if (!origin) return callback(null, true);
+
+    // Allow configured origins (production + dev)
+    if (config.cors.origins.includes(origin)) return callback(null, true);
+
+    // Allow local network IPs used during Expo Go development
+    // e.g. http://192.168.1.5:3000 or http://10.0.2.2:3000
+    const localNetworkPattern = /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/;
+    if (localNetworkPattern.test(origin)) return callback(null, true);
+
+    callback(new Error(`CORS policy violation: origin ${origin} not allowed`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
