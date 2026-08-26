@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuthStore } from '../../store/authStore';
+import { useAuthStore } from '../../stores/authStore';
 import { apiPost } from '../../lib/api';
 
 const schema = z.object({
@@ -44,7 +44,7 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
-  const setTokens = useAuthStore(state => state.setTokens);
+  const setTokens = useAuthStore((state: any) => state.setTokens);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -78,7 +78,7 @@ export default function RegisterPage() {
     
     setIsLoading(true);
     try {
-      const res = await apiPost('/auth/verify-otp', {
+      const res = await apiPost<any>('/auth/verify-otp', {
         contact: registeredContact,
         otp,
         type: registeredContact.includes('@') ? 'EMAIL_VERIFICATION' : 'MOBILE_VERIFICATION',
