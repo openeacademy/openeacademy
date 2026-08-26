@@ -17,7 +17,7 @@ export default function NotificationsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-notifications', page, limit, search],
-    queryFn: () => apiGet(`/admin/notifications?page=${page}&limit=${limit}&search=${search}`),
+    queryFn: () => apiGet<any>(`/admin/notifications?page=${page}&limit=${limit}&search=${search}`),
   });
 
   const createMutation = useMutation({
@@ -40,7 +40,7 @@ export default function NotificationsPage() {
   });
 
   const notifications = data?.data || [];
-  const total = data?.pagination?.total || 0;
+  const total = data?.meta?.total || 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -58,6 +58,7 @@ export default function NotificationsPage() {
 
       <div className="card">
         <AdminTableHeader
+          title="All Notifications"
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search notifications..."
@@ -102,7 +103,7 @@ export default function NotificationsPage() {
           </table>
         </div>
         
-        <AdminPagination currentPage={page} totalPages={Math.ceil(total / limit)} onPageChange={setPage} totalItems={total} />
+        <AdminPagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
 
       <SlideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="New Notification">

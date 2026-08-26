@@ -13,11 +13,11 @@ export default function ActivityLogsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-activity-logs', page, limit, search, actionFilter],
-    queryFn: () => apiGet(`/admin/activity-logs?page=${page}&limit=${limit}&search=${search}${actionFilter ? `&action=${actionFilter}` : ''}`),
+    queryFn: () => apiGet<any>(`/admin/activity-logs?page=${page}&limit=${limit}&search=${search}${actionFilter ? `&action=${actionFilter}` : ''}`),
   });
 
   const logs = data?.data || [];
-  const total = data?.pagination?.total || 0;
+  const total = data?.meta?.total || 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -110,8 +110,7 @@ export default function ActivityLogsPage() {
             </tbody>
           </table>
         </div>
-        
-        <AdminPagination currentPage={page} totalPages={Math.ceil(total / limit)} onPageChange={setPage} totalItems={total} />
+        <AdminPagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
     </div>
   );

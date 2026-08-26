@@ -21,7 +21,7 @@ export default function SeoPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-seo', page, limit, search],
-    queryFn: () => apiGet(`/admin/seo?page=${page}&limit=${limit}&search=${search}`),
+    queryFn: () => apiGet<any>(`/admin/seo?page=${page}&limit=${limit}&search=${search}`),
   });
 
   const updateMutation = useMutation({
@@ -50,7 +50,7 @@ export default function SeoPage() {
   };
 
   const seoData = data?.data || [];
-  const total = data?.pagination?.total || 0;
+  const total = data?.meta?.total || 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -65,6 +65,7 @@ export default function SeoPage() {
 
       <div className="card">
         <AdminTableHeader
+          title="SEO Meta Records"
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search SEO records..."
@@ -109,7 +110,7 @@ export default function SeoPage() {
           </table>
         </div>
         
-        <AdminPagination currentPage={page} totalPages={Math.ceil(total / limit)} onPageChange={setPage} totalItems={total} />
+        <AdminPagination page={page} limit={limit} total={total} onPageChange={setPage} />
       </div>
 
       <SlideDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="Edit SEO Metadata">

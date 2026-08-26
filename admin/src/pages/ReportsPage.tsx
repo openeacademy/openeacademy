@@ -6,7 +6,7 @@ import { BarChart3, Users, IndianRupee, FileText, Trophy, Activity } from 'lucid
 export default function ReportsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-reports'],
-    queryFn: () => apiGet('/admin/reports'),
+    queryFn: () => apiGet<any>('/admin/reports'),
   });
 
   const stats = data?.data || {
