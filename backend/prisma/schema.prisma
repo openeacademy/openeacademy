@@ -45,6 +45,7 @@ enum SubscriptionStatus {
 }
 
 enum PlanType {
+  FREE
   EXAM_PACK
   SUBJECT_PACK
   PDF_ONLY
@@ -172,6 +173,7 @@ model User {
   activityLogs  ActivityLog[]
   devices       UserDevice[]
   progress      UserProgress[]
+  usages        UserUsage[]
 
   @@map("users")
 }
@@ -558,6 +560,18 @@ model AttemptResponse {
   @@map("attempt_responses")
 }
 
+model UserUsage {
+  id        String   @id @default(uuid())
+  userId    String
+  feature   String
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, feature])
+  @@map("user_usage")
+}
+
 // ─────────────────────────────────────────────
 // SUBSCRIPTIONS & PAYMENTS
 // ─────────────────────────────────────────────
@@ -574,6 +588,7 @@ model SubscriptionPlan {
   discountedPrice Float
   gstPercent      Float        @default(18)
   features        String[]
+  featureLimits   Json         @default("{}")
   isActive        Boolean      @default(true)
   isFeatured      Boolean      @default(false)
   isDefault       Boolean      @default(false)

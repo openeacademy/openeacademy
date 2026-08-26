@@ -13,7 +13,7 @@ import { uploadFile, getSignedUrl, deleteFile } from '../../utils/storage';
 import { cacheGet, cacheSet, cacheDelPattern } from '../../config/redis';
 import { UserRole } from '@prisma/client';
 
-import { hasUserFeature } from './subscriptions';
+import { hasUserFeature, incrementUserUsage } from './subscriptions';
 
 const router = Router();
 
@@ -171,10 +171,19 @@ router.get('/:id/stream', optionalAuth, async (req: Request, res: Response, next
 
     // Update reading progress if logged in
     if (req.user) {
+      const existingAccess = await prisma.pDFAccess.findUnique({
+        where: { userId_pdfId: { userId: req.user.userId, pdfId: pdf.id } }
+      });
+
+      // If viewing past free preview pages, and they haven't accessed this pdf beyond preview before
+      if (requestedPage > pdf.freePreviewPages && (!existingAccess || existingAccess.lastPage <= pdf.freePreviewPages)) {
+        await incrementUserUsage(req.user.userId, 'access_all_pdfs');
+      }
+
       await prisma.pDFAccess.upsert({
         where: { userId_pdfId: { userId: req.user.userId, pdfId: pdf.id } },
         update: {
-          lastPage: requestedPage,
+          lastPage: Math.max(requestedPage, existingAccess?.lastPage || 1),
           lastAccessAt: new Date(),
           isUnlocked: isSubscribed,
           readingProgress: pdf.totalPages ? (requestedPage / pdf.totalPages) * 100 : 0,

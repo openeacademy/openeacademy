@@ -45,7 +45,7 @@ router.get('/my', authenticate, async (req: Request, res: Response, next: NextFu
   }
 });
 
-// Helper: check if user has active subscription with a specific feature
+// Helper: check if user has active subscription with a specific feature and respects quotas
 export async function hasUserFeature(userId: string, featureKey?: string): Promise<boolean> {
   const subs = await prisma.subscription.findMany({
     where: { userId, status: 'ACTIVE', endDate: { gte: new Date() } },
@@ -54,11 +54,49 @@ export async function hasUserFeature(userId: string, featureKey?: string): Promi
   if (subs.length === 0) return false;
   if (!featureKey) return true;
   
+  let hasFeature = false;
+  let maxLimit = 0; // 0 means not found, -1 means unlimited, >0 means limited
+
   for (const sub of subs) {
     const features = (sub.plan?.features as string[]) || [];
-    if (features.includes(featureKey)) return true;
+    if (features.includes(featureKey)) {
+      hasFeature = true;
+      const limits = sub.plan?.featureLimits as any;
+      if (!limits || limits[featureKey] === undefined || limits[featureKey] === null || limits[featureKey] === '') {
+        maxLimit = -1; // Unlimited
+        break; // No need to check other plans if we have an unlimited one
+      } else {
+        const limitVal = parseInt(limits[featureKey], 10);
+        if (isNaN(limitVal)) {
+           maxLimit = -1;
+           break;
+        }
+        if (maxLimit !== -1 && limitVal > maxLimit) {
+           maxLimit = limitVal;
+        }
+      }
+    }
   }
-  return false;
+
+  if (!hasFeature) return false;
+  if (maxLimit === -1) return true; // Unlimited access
+
+  // Check usage
+  const usage = await prisma.userUsage.findUnique({
+    where: { userId_feature: { userId, feature: featureKey } }
+  });
+
+  const currentCount = usage?.count || 0;
+  return currentCount < maxLimit;
+}
+
+// Helper: increment usage count for a quantifiable feature
+export async function incrementUserUsage(userId: string, featureKey: string): Promise<void> {
+  await prisma.userUsage.upsert({
+    where: { userId_feature: { userId, feature: featureKey } },
+    update: { count: { increment: 1 } },
+    create: { userId, feature: featureKey, count: 1 }
+  });
 }
 
 // ─── Coupon Validation ────────────────────────────────────────────────────────

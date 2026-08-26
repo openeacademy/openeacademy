@@ -18,14 +18,19 @@ const ALL_FEATURES: { key: string; label: string; description: string; icon: Rea
   { key: 'mock_tests',            label: 'Mock Tests & Timed Tests', description: 'Full-length timed mock tests with auto-grading',       icon: <Clock className="w-4 h-4" />,       group: 'Content' },
   { key: 'question_bank',         label: 'Full Question Bank',       description: 'Access the complete question bank for practice',       icon: <Shield className="w-4 h-4" />,      group: 'Content' },
   { key: 'access_all_exams',      label: 'All Exam Packs',           description: 'Content for all available exam categories',           icon: <Award className="w-4 h-4" />,       group: 'Content' },
+  { key: 'subject_wise_content',  label: 'Subject-Wise Material',    description: 'Access study material organized by specific subjects', icon: <BookOpen className="w-4 h-4" />,    group: 'Content' },
+  { key: 'ad_free',               label: 'Ad-Free Experience',       description: 'Study without any interruptions or advertisements',   icon: <Star className="w-4 h-4" />,        group: 'Content' },
+  { key: 'multi_device',          label: 'Multi-Device Access',      description: 'Seamlessly study across Web, Android, and iOS apps',  icon: <Video className="w-4 h-4" />,       group: 'Content' },
   { key: 'detailed_solutions',    label: 'Detailed Solutions',       description: 'Step-by-step answer explanations for all questions',   icon: <Check className="w-4 h-4" />,       group: 'Learning' },
   { key: 'video_explanations',    label: 'Video Explanations',       description: 'Video walkthroughs for difficult topics',              icon: <Video className="w-4 h-4" />,       group: 'Learning' },
   { key: 'mentorship_session',    label: '1-on-1 Mentorship',        description: 'Personal mentorship session with an expert',          icon: <UserCheck className="w-4 h-4" />,   group: 'Learning' },
+  { key: 'bookmark_questions',    label: 'Bookmark & Revision',      description: 'Bookmark important questions and PDFs for revision',  icon: <Star className="w-4 h-4" />,        group: 'Learning' },
   { key: 'analytics_dashboard',   label: 'Personal Analytics',       description: 'Detailed performance analytics and progress tracking', icon: <BarChart2 className="w-4 h-4" />,   group: 'Insights' },
   { key: 'all_india_rank',        label: 'All India Rank Engine',    description: 'Compare your rank across all registered students',    icon: <Users className="w-4 h-4" />,       group: 'Insights' },
+  { key: 'exam_notifications',    label: 'Exam Job Alerts',          description: 'Get instant notifications for new job/exam updates',  icon: <MessageSquare className="w-4 h-4" />,group: 'Insights' },
   { key: 'priority_support',      label: 'Priority Support',         description: '24/7 priority chat and email support',                icon: <MessageSquare className="w-4 h-4" />, group: 'Support' },
   { key: 'coupon_eligible',       label: 'Coupon Code Eligible',     description: 'Can apply discount coupons on purchase',              icon: <Percent className="w-4 h-4" />,     group: 'Billing' },
-  { key: 'early_access',         label: 'Early Access',             description: 'First access to new content and features',            icon: <Star className="w-4 h-4" />,        group: 'Billing' },
+  { key: 'early_access',          label: 'Early Access',             description: 'First access to new content and features',            icon: <Star className="w-4 h-4" />,        group: 'Billing' },
 ];
 
 const FEATURE_GROUPS = ['Content', 'Learning', 'Insights', 'Support', 'Billing'];
@@ -37,7 +42,7 @@ const durationLabel: Record<string, string> = {
   TWELVE_MONTHS: '1 Year', LIFETIME: 'Lifetime',
 };
 const durationOptions = ['ONE_MONTH', 'THREE_MONTHS', 'SIX_MONTHS', 'TWELVE_MONTHS', 'LIFETIME'];
-const typeOptions = ['EXAM_PACK', 'SUBJECT_PACK', 'PDF_ONLY', 'PREMIUM', 'CUSTOM'];
+const typeOptions = ['FREE', 'EXAM_PACK', 'SUBJECT_PACK', 'PDF_ONLY', 'PREMIUM', 'CUSTOM'];
 const durationDaysMap: Record<string, number> = {
   ONE_MONTH: 30, THREE_MONTHS: 90, SIX_MONTHS: 180, TWELVE_MONTHS: 365, LIFETIME: 36500,
 };
@@ -45,13 +50,14 @@ const durationDaysMap: Record<string, number> = {
 interface PlanForm {
   name: string; type: string; duration: string; durationDays: number;
   originalPrice: number; discountedPrice: number; gstPercent: number;
-  features: string[]; isFeatured: boolean; isDefault: boolean; isActive: boolean; sortOrder: number;
+  features: string[]; featureLimits: Record<string, string>; isFeatured: boolean; isDefault: boolean; isActive: boolean; sortOrder: number;
 }
 
 const defaultForm: PlanForm = {
   name: '', type: 'PREMIUM', duration: 'ONE_MONTH', durationDays: 30,
   originalPrice: 499, discountedPrice: 299, gstPercent: 18,
   features: ['access_all_pdfs', 'access_all_quizzes', 'analytics_dashboard'],
+  featureLimits: {},
   isFeatured: false, isDefault: false, isActive: true, sortOrder: 0,
 };
 
@@ -131,7 +137,17 @@ function ManualAssignModal({ plans, onClose }: { plans: any[]; onClose: () => vo
 
 // ─── Feature Checkbox Grid ─────────────────────────────────────────────────────
 
-function FeatureSelector({ selected, onChange }: { selected: string[]; onChange: (keys: string[]) => void }) {
+function FeatureSelector({ 
+  selected, 
+  onChange,
+  limits,
+  onLimitChange
+}: { 
+  selected: string[]; 
+  onChange: (keys: string[]) => void;
+  limits: Record<string, string>;
+  onLimitChange: (key: string, value: string) => void;
+}) {
   const toggle = (key: string) => {
     onChange(selected.includes(key) ? selected.filter(k => k !== key) : [...selected, key]);
   };
@@ -174,10 +190,9 @@ function FeatureSelector({ selected, onChange }: { selected: string[]; onChange:
             </button>
             <div className="divide-y divide-gray-50">
               {groupFeatures.map(feat => (
-                <label key={feat.key} className="flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors">
-                  <div className="mt-0.5 flex-shrink-0">
+                <div key={feat.key} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                  <div className="mt-0.5 flex-shrink-0 cursor-pointer" onClick={() => toggle(feat.key)}>
                     <div
-                      onClick={() => toggle(feat.key)}
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                         selected.includes(feat.key) ? 'bg-primary-600 border-primary-600' : 'border-gray-300 hover:border-primary-400'
                       }`}
@@ -185,14 +200,26 @@ function FeatureSelector({ selected, onChange }: { selected: string[]; onChange:
                       {selected.includes(feat.key) && <Check className="w-3 h-3 text-white" />}
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0" onClick={() => toggle(feat.key)}>
+                  <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggle(feat.key)}>
                     <div className="flex items-center gap-2">
                       <span className="text-gray-400">{feat.icon}</span>
                       <span className="text-sm font-medium text-gray-800">{feat.label}</span>
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">{feat.description}</p>
                   </div>
-                </label>
+                  {selected.includes(feat.key) && (
+                    <div className="flex-shrink-0 w-24">
+                      <input 
+                        type="number" 
+                        min="1"
+                        className="input text-sm py-1 px-2 h-8 text-center"
+                        placeholder="Unlimited"
+                        value={limits[feat.key] || ''}
+                        onChange={(e) => onLimitChange(feat.key, e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -241,7 +268,7 @@ export default function SubscriptionsPage() {
     setForm({
       name: plan.name, type: plan.type, duration: plan.duration, durationDays: plan.durationDays,
       originalPrice: plan.originalPrice, discountedPrice: plan.discountedPrice,
-      gstPercent: plan.gstPercent, features: plan.features || [],
+      gstPercent: plan.gstPercent, features: plan.features || [], featureLimits: plan.featureLimits || {},
       isFeatured: plan.isFeatured, isDefault: plan.isDefault || false, isActive: plan.isActive, sortOrder: plan.sortOrder || 0,
     });
     setModal({ open: true, plan });
@@ -350,6 +377,8 @@ export default function SubscriptionsPage() {
                 <FeatureSelector
                   selected={form.features}
                   onChange={keys => setForm(f => ({ ...f, features: keys }))}
+                  limits={form.featureLimits}
+                  onLimitChange={(key, value) => setForm(f => ({ ...f, featureLimits: { ...f.featureLimits, [key]: value } }))}
                 />
               </div>
 

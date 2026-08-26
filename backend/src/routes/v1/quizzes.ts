@@ -8,14 +8,9 @@ import { NotFoundError, AppError } from '../../utils/errors';
 import { cacheDelPattern } from '../../config/redis';
 import { UserRole } from '@prisma/client';
 
-const router = Router();
+import { hasUserFeature, incrementUserUsage } from './subscriptions';
 
-async function hasActiveSubscription(userId: string): Promise<boolean> {
-  const sub = await prisma.subscription.findFirst({
-    where: { userId, status: 'ACTIVE', endDate: { gte: new Date() } },
-  });
-  return !!sub;
-}
+const router = Router();
 
 /**
  * @swagger
@@ -111,10 +106,13 @@ router.post('/:id/start', authenticate, async (req: Request, res: Response, next
 
     // Check subscription
     if (quiz.requiresSubscription) {
-      const isSubscribed = await hasActiveSubscription(req.user!.userId);
+      // Check feature based on quiz type (for simplicity, using 'access_all_quizzes' or generic check)
+      const isSubscribed = await hasUserFeature(req.user!.userId, 'access_all_quizzes');
       if (!isSubscribed) {
-        return res.status(402).json({ success: false, message: 'Subscription required', code: 'SUBSCRIPTION_REQUIRED' });
+        return res.status(402).json({ success: false, message: 'Subscription or Quota exceeded', code: 'SUBSCRIPTION_REQUIRED' });
       }
+      // Increment quota usage for this quiz start
+      await incrementUserUsage(req.user!.userId, 'access_all_quizzes');
     }
 
     // Check max attempts
