@@ -47,14 +47,18 @@ router.get('/my', authenticate, async (req: Request, res: Response, next: NextFu
 
 // Helper: check if user has active subscription with a specific feature
 export async function hasUserFeature(userId: string, featureKey?: string): Promise<boolean> {
-  const sub = await prisma.subscription.findFirst({
+  const subs = await prisma.subscription.findMany({
     where: { userId, status: 'ACTIVE', endDate: { gte: new Date() } },
     include: { plan: true },
   });
-  if (!sub) return false;
+  if (subs.length === 0) return false;
   if (!featureKey) return true;
-  const features = (sub.plan?.features as string[]) || [];
-  return features.includes(featureKey);
+  
+  for (const sub of subs) {
+    const features = (sub.plan?.features as string[]) || [];
+    if (features.includes(featureKey)) return true;
+  }
+  return false;
 }
 
 // ─── Coupon Validation ────────────────────────────────────────────────────────
@@ -152,7 +156,7 @@ router.post(
       const razorpay = await getRazorpayInstance();
       const razorpayConfig = await getRazorpayConfig();
 
-      if (razorpay) {
+      if (razorpay && amountInPaise > 0) {
         const order = await razorpay.orders.create({
           amount: amountInPaise,
           currency: 'INR',
@@ -204,7 +208,7 @@ router.post(
     body('razorpay_order_id').optional(),
     body('razorpay_payment_id').notEmpty(),
     body('razorpay_signature').optional(),
-    body('paymentId').notEmpty(),
+    body('paymentId').optional(),
   ],
   validate,
   async (req: Request, res: Response, next: NextFunction) => {
@@ -214,28 +218,39 @@ router.post(
       // Verify signature
       const razorpayConfig = await getRazorpayConfig();
 
-      if (!razorpay_order_id || !razorpay_signature) {
-        if (config.env !== 'development') {
-          throw new AppError('Missing payment signature', 400);
-        }
-      } else if (razorpayConfig.keySecret) {
-        const expectedSignature = crypto
-          .createHmac('sha256', razorpayConfig.keySecret)
-          .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-          .digest('hex');
+      let payment;
+      if (paymentId) {
+        payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+      } else if (razorpay_order_id) {
+        payment = await prisma.payment.findFirst({ where: { providerOrderId: razorpay_order_id } });
+      }
 
-        if (expectedSignature !== razorpay_signature && config.env !== 'development') {
-          throw new AppError('Payment verification failed', 400);
+      if (!payment || payment.userId !== req.user!.userId) throw new NotFoundError('Payment');
+      if (payment.status === 'COMPLETED') {
+        // If already completed (e.g. from webhook), just return success
+        return sendSuccess(res, null, 'Payment verified successfully');
+      }
+
+      if (payment.amount > 0) {
+        if (!razorpay_order_id || !razorpay_signature) {
+          if (config.env !== 'development') {
+            throw new AppError('Missing payment signature', 400);
+          }
+        } else if (razorpayConfig.keySecret) {
+          const expectedSignature = crypto
+            .createHmac('sha256', razorpayConfig.keySecret)
+            .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+            .digest('hex');
+
+          if (expectedSignature !== razorpay_signature && config.env !== 'development') {
+            throw new AppError('Payment verification failed', 400);
+          }
         }
       }
 
-      const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
-      if (!payment || payment.userId !== req.user!.userId) throw new NotFoundError('Payment');
-      if (payment.status === 'COMPLETED') throw new AppError('Payment already processed', 400);
-
       // Update payment status
       await prisma.payment.update({
-        where: { id: paymentId },
+        where: { id: payment.id },
         data: { status: 'COMPLETED', providerPaymentId: razorpay_payment_id, providerSignature: razorpay_signature },
       });
 

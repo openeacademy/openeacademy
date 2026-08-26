@@ -19,7 +19,16 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
       throw new UnauthorizedError('Access token required');
     }
     const token = authHeader.split(' ')[1];
-    req.user = verifyAccessToken(token);
+    const user = verifyAccessToken(token);
+
+    if (user.status === 'BANNED' || user.status === 'SUSPENDED') {
+      throw new UnauthorizedError(`Account is ${user.status.toLowerCase()}`);
+    }
+    if (user.status === 'PENDING_VERIFICATION') {
+      throw new UnauthorizedError('Account pending verification');
+    }
+
+    req.user = user;
     next();
   } catch (err) {
     if (err instanceof UnauthorizedError) {

@@ -174,12 +174,7 @@ export default function PDFReaderPage() {
   const [captureSubmitting, setCaptureSubmitting] = useState(false);
   const [captureComplete, setCaptureComplete] = useState(false);
 
-  // Check if user is authenticated; if not, redirect to login with redirect back
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate(`/login?redirect=${encodeURIComponent(`/read/${slug}`)}`, { replace: true });
-    }
-  }, [isAuthenticated, slug, navigate]);
+  // Auth redirect removed: Unauthenticated users can now read up to freePreviewPages
 
   // Check if contact info is needed (only for unauthenticated OR users without email/mobile)
   useEffect(() => {
@@ -445,10 +440,10 @@ export default function PDFReaderPage() {
                     <span className="font-bold">Limit:</span> {stream?.freePreviewPages || pdf?.freePreviewPages || 3} free preview pages • {pdf?.totalPages ? pdf.totalPages - (pdf.freePreviewPages || 3) : 0} premium pages locked
                   </div>
                   <button
-                    onClick={() => openSubscriptionModal({ pdfId: pdf?.id, message: 'Unlock full access to all pages of this study note.' })}
+                    onClick={() => isAuthenticated ? openSubscriptionModal({ pdfId: pdf?.id, message: 'Unlock full access to all pages of this study note.' }) : navigate(`/login?redirect=${encodeURIComponent(`/read/${slug}`)}`)}
                     className="btn-primary w-full justify-center py-3.5 text-base font-bold rounded-xl shadow-lg shadow-primary-500/25 hover:shadow-primary-500/40 transition-all"
                   >
-                    Subscribe & Unlock All Pages
+                    {isAuthenticated ? 'Subscribe to Unlock' : 'Log In to Unlock'}
                   </button>
                   <button onClick={() => goToPage(1)} className="btn-ghost w-full justify-center mt-3 text-xs text-gray-500 hover:text-gray-800">
                     ← Back to Page 1

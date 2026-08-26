@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPatch, apiPost } from '../lib/api';
+import { apiGet, apiPatch, apiPost, apiDelete } from '../lib/api';
 import {
   Search, MoreVertical, Shield, Ban, CheckCircle, UserX, X,
   Loader2, Crown, CreditCard, Activity, Calendar, ChevronRight,
@@ -74,6 +74,16 @@ export default function UsersPage() {
       toast.success('Role updated');
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       queryClient.invalidateQueries({ queryKey: ['admin-user-detail'] });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed'),
+  });
+
+  const hardDeleteMutation = useMutation({
+    mutationFn: (id: string) => apiDelete(`/admin/users/${id}?hard=true`),
+    onSuccess: () => {
+      toast.success('User permanently deleted');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setSelectedUser(null);
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed'),
   });
@@ -163,51 +173,39 @@ export default function UsersPage() {
                 </p>
               </div>
 
-              {/* Change Role */}
-              <div className="p-5 border-b border-gray-100">
-                <h4 className="text-sm font-semibold text-gray-700 mb-3">Change Role</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(ROLE_LABELS).map(([role, label]) => (
-                    <button
-                      key={role}
-                      onClick={() => roleMutation.mutate({ id: selectedUser.id, role })}
-                      disabled={selectedUser.role === role || roleMutation.isPending}
-                      className={`p-2.5 rounded-xl text-sm font-medium border-2 transition-all text-left ${
-                        selectedUser.role === role
-                          ? 'border-primary-500 bg-primary-50 text-primary-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      <Shield className="w-4 h-4 mb-1 inline-block mr-1" />{label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               {/* Subscriptions */}
               <div className="p-5 border-b border-gray-100">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-gray-700">Subscription History</h4>
+                  <h4 className="text-sm font-semibold text-gray-700">Active Plan</h4>
                   <button
                     onClick={() => setManualSubModal(true)}
-                    className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+                    className="text-xs text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1 bg-primary-50 px-2 py-1 rounded border border-primary-200"
                   >
-                    <CreditCard className="w-3.5 h-3.5" /> Assign Plan
+                    <CreditCard className="w-3.5 h-3.5" /> Change Plan
                   </button>
                 </div>
                 {detailsLoading ? (
                   <div className="py-4 text-center"><Loader2 className="w-5 h-5 animate-spin mx-auto text-gray-400" /></div>
-                ) : (userDetails?.subscriptions || []).length === 0 ? (
-                  <p className="text-sm text-gray-400 py-2">No subscriptions yet</p>
+                ) : (userDetails?.subscriptions || []).filter((s: any) => s.status === 'ACTIVE').length === 0 ? (
+                  <div className="p-4 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 text-sm">
+                    No active plan found
+                  </div>
                 ) : (
                   <div className="space-y-2">
-                    {(userDetails?.subscriptions || []).slice(0, 3).map((sub: any) => (
-                      <div key={sub.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl text-sm">
-                        <div>
-                          <p className="font-medium text-gray-900">{sub.plan?.name || 'Unknown Plan'}</p>
-                          <p className="text-xs text-gray-400">{format(new Date(sub.startDate), 'dd MMM yy')} → {format(new Date(sub.endDate), 'dd MMM yy')}</p>
+                    {(userDetails?.subscriptions || []).filter((s: any) => s.status === 'ACTIVE').map((sub: any) => (
+                      <div key={sub.id} className="flex flex-col gap-2 p-4 bg-primary-50 border border-primary-200 rounded-xl text-sm shadow-sm relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-2 opacity-10">
+                          <Crown className="w-16 h-16 text-primary-600" />
                         </div>
-                        <span className={`badge text-xs ${sub.status === 'ACTIVE' ? 'badge-success' : 'bg-gray-100 text-gray-500'}`}>{sub.status}</span>
+                        <div className="relative z-10 flex justify-between items-start">
+                          <div>
+                            <p className="font-bold text-primary-900 text-base">{sub.plan?.name || 'Unknown Plan'}</p>
+                            <p className="text-xs text-primary-700/70 font-medium mt-1">Valid till {format(new Date(sub.endDate), 'dd MMM yyyy')}</p>
+                          </div>
+                          <span className="badge badge-success text-xs">ACTIVE</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -217,26 +215,27 @@ export default function UsersPage() {
               {/* Status Actions */}
               <div className="p-5">
                 <h4 className="text-sm font-semibold text-gray-700 mb-3">Account Actions</h4>
-                <div className="space-y-2">
-                  {selectedUser.status !== 'ACTIVE' && (
-                    <button onClick={() => statusMutation.mutate({ id: selectedUser.id, status: 'ACTIVE' })} disabled={statusMutation.isPending}
-                      className="btn-secondary w-full justify-center text-emerald-600 hover:bg-emerald-50">
-                      <CheckCircle className="w-4 h-4" /> Activate Account
-                    </button>
-                  )}
-                  {selectedUser.status !== 'SUSPENDED' && (
-                    <button onClick={() => statusMutation.mutate({ id: selectedUser.id, status: 'SUSPENDED' })} disabled={statusMutation.isPending}
-                      className="btn-secondary w-full justify-center text-amber-600 hover:bg-amber-50">
-                      <Ban className="w-4 h-4" /> Suspend Account
-                    </button>
-                  )}
-                  {selectedUser.status !== 'BANNED' && (
-                    <button onClick={() => { if (confirm(`Ban ${selectedUser.name}? This prevents login.`)) statusMutation.mutate({ id: selectedUser.id, status: 'BANNED' }); }}
-                      disabled={statusMutation.isPending}
-                      className="btn-secondary w-full justify-center text-rose-600 hover:bg-rose-50">
-                      <UserX className="w-4 h-4" /> Ban Account
-                    </button>
-                  )}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button onClick={() => statusMutation.mutate({ id: selectedUser.id, status: 'ACTIVE' })} disabled={statusMutation.isPending || selectedUser.status === 'ACTIVE'}
+                    className={`btn-secondary justify-center text-emerald-600 hover:bg-emerald-50 ${selectedUser.status === 'ACTIVE' ? 'opacity-50' : ''}`}>
+                    <CheckCircle className="w-4 h-4" /> Activate
+                  </button>
+                  <button onClick={() => statusMutation.mutate({ id: selectedUser.id, status: 'SUSPENDED' })} disabled={statusMutation.isPending || selectedUser.status === 'SUSPENDED'}
+                    className={`btn-secondary justify-center text-amber-600 hover:bg-amber-50 ${selectedUser.status === 'SUSPENDED' ? 'opacity-50' : ''}`}>
+                    <Ban className="w-4 h-4" /> Suspend
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => { if (confirm(`Soft Delete (Ban) ${selectedUser.name}? This prevents login.`)) statusMutation.mutate({ id: selectedUser.id, status: 'BANNED' }); }}
+                    disabled={statusMutation.isPending || selectedUser.status === 'BANNED'}
+                    className={`btn-secondary justify-center text-rose-600 hover:bg-rose-50 ${selectedUser.status === 'BANNED' ? 'opacity-50' : ''}`}>
+                    <UserX className="w-4 h-4" /> Soft Delete
+                  </button>
+                  <button onClick={() => { if (confirm(`HARD DELETE ${selectedUser.name}? This permanently removes all their data from the database. This action cannot be undone.`)) hardDeleteMutation.mutate(selectedUser.id); }}
+                    disabled={hardDeleteMutation.isPending}
+                    className="btn-secondary justify-center text-white bg-rose-600 hover:bg-rose-700 border-transparent">
+                    <UserX className="w-4 h-4" /> Hard Delete
+                  </button>
                 </div>
               </div>
             </div>

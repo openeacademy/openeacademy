@@ -77,19 +77,10 @@ function PDFCard({ pdf, index }: { pdf: PDF; index: number }) {
         )}
 
         <div className="flex items-center gap-2">
-          {isAuthenticated ? (
-            <Link to={`/read/${pdf.slug}`} className="btn-primary flex-1 justify-center text-xs py-2">
-              <Eye className="w-3.5 h-3.5" />
-              {pdf.requiresSubscription ? `Preview (${pdf.freePreviewPages} pages)` : 'Read'}
-            </Link>
-          ) : (
-            <Link
-              to={`/login?redirect=${encodeURIComponent(`/read/${pdf.slug}`)}`}
-              className="btn-secondary flex-1 justify-center text-xs py-2"
-            >
-              <Lock className="w-3.5 h-3.5" /> Login to Read
-            </Link>
-          )}
+          <Link to={`/read/${pdf.slug}`} className="btn-primary flex-1 justify-center text-xs py-2">
+            <Eye className="w-3.5 h-3.5" />
+            {pdf.requiresSubscription ? `Preview (${pdf.freePreviewPages} pages)` : 'Read'}
+          </Link>
           {pdf.allowDownload && isAuthenticated && (
             <button 
               onClick={async (e) => {

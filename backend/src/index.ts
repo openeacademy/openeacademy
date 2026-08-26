@@ -75,8 +75,17 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many auth attempts. Try again in 15 minutes.' },
 });
 
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs
+  message: { success: false, message: 'Too many OTP requests. Please try again later.' },
+});
+
 app.use('/api/', limiter);
-app.use('/api/v1/auth/', authLimiter);
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/register', authLimiter);
+app.use('/api/v1/auth/send-otp', otpLimiter);
+app.use('/api/v1/auth/verify-otp', otpLimiter);
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 

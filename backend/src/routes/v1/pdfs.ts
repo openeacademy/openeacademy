@@ -145,13 +145,13 @@ router.get('/:slug', optionalAuth, async (req: Request, res: Response, next: Nex
  *     summary: Get signed URL for PDF page range (enforces preview limit)
  *     security: [{ BearerAuth: [] }]
  */
-router.get('/:id/stream', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get('/:id/stream', optionalAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const pdf = await prisma.pDF.findUnique({ where: { id: req.params.id } });
     if (!pdf || !pdf.isActive) throw new NotFoundError('PDF');
 
     const requestedPage = parseInt(req.query.page as string) || 1;
-    const isSubscribed = await hasActiveSubscription(req.user!.userId, 'access_all_pdfs');
+    const isSubscribed = req.user ? await hasActiveSubscription(req.user.userId, 'access_all_pdfs') : false;
 
     // Enforce preview limit
     if (pdf.requiresSubscription && !isSubscribed) {
@@ -169,17 +169,19 @@ router.get('/:id/stream', authenticate, async (req: Request, res: Response, next
     // Generate signed URL with short TTL
     const signedUrl = getSignedUrl(pdf.s3Key, 300); // 5 minutes
 
-    // Update reading progress
-    await prisma.pDFAccess.upsert({
-      where: { userId_pdfId: { userId: req.user!.userId, pdfId: pdf.id } },
-      update: {
-        lastPage: requestedPage,
-        lastAccessAt: new Date(),
-        isUnlocked: isSubscribed,
-        readingProgress: pdf.totalPages ? (requestedPage / pdf.totalPages) * 100 : 0,
-      },
-      create: { userId: req.user!.userId, pdfId: pdf.id, lastPage: requestedPage, isUnlocked: isSubscribed },
-    });
+    // Update reading progress if logged in
+    if (req.user) {
+      await prisma.pDFAccess.upsert({
+        where: { userId_pdfId: { userId: req.user.userId, pdfId: pdf.id } },
+        update: {
+          lastPage: requestedPage,
+          lastAccessAt: new Date(),
+          isUnlocked: isSubscribed,
+          readingProgress: pdf.totalPages ? (requestedPage / pdf.totalPages) * 100 : 0,
+        },
+        create: { userId: req.user.userId, pdfId: pdf.id, lastPage: requestedPage, isUnlocked: isSubscribed },
+      });
+    }
 
     return sendSuccess(res, {
       signedUrl,

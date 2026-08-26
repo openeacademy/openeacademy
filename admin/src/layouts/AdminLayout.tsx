@@ -62,7 +62,6 @@ const navSections: NavSection[] = [
     items: [
       { icon: Globe, label: 'SEO Manager', path: '/seo' },
       { icon: Activity, label: 'Activity Logs', path: '/activity-logs' },
-      { icon: Sliders, label: 'Settings & Config', path: '/settings' },
     ],
   },
 ];
@@ -108,19 +107,8 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        {/* User Card */}
-        <div className="px-5 py-3.5 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 font-bold flex items-center justify-center text-xs">
-            {(user?.name || 'A').charAt(0).toUpperCase()}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-gray-900 truncate">{user?.name || 'Admin'}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.email || 'admin@openeacademy.in'}</p>
-          </div>
-        </div>
-
         {/* Navigation Groups */}
-        <nav className="flex-1 p-3 space-y-4 overflow-y-auto">
+        <nav className="flex-1 p-3 space-y-4 overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-gray-200 [&::-webkit-scrollbar-track]:bg-transparent">
           {navSections.map(section => {
             const isCollapsed = collapsedSections[section.title];
             return (
@@ -209,30 +197,29 @@ export default function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            {/* Environment Badge per Section 1 */}
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">Production</span>
-            </div>
+            {/* Admin Profile Dropdown */}
+            <div className="relative group pl-3 border-l border-gray-200">
+              <button className="flex items-center gap-3 focus:outline-none">
+                <div className="w-9 h-9 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                  {(user?.name || 'Admin').charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden md:block text-left">
+                  <p className="text-sm font-bold text-gray-900 leading-tight">{user?.name || 'Super Admin'}</p>
+                  <p className="text-[11px] font-medium text-primary-600">{user?.role || 'SUPER_ADMIN'}</p>
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
 
-            {/* Notifications Bell */}
-            <button
-              onClick={() => navigate('/notifications')}
-              className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900 relative transition-colors"
-              title="Notifications"
-            >
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full" />
-            </button>
-
-            {/* Admin Profile Pill */}
-            <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
-              <div className="w-9 h-9 rounded-full bg-primary-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
-                {(user?.name || 'Admin').charAt(0).toUpperCase()}
-              </div>
-              <div className="hidden md:block">
-                <p className="text-sm font-bold text-gray-900 leading-tight">{user?.name || 'Super Admin'}</p>
-                <p className="text-[11px] font-medium text-primary-600">{user?.role || 'SUPER_ADMIN'}</p>
+              {/* Dropdown Menu */}
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 overflow-hidden">
+                <div className="p-1">
+                  <button onClick={() => navigate('/settings')} className="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    <Settings className="w-4 h-4 mr-2 text-gray-400" /> Settings
+                  </button>
+                  <button onClick={handleLogout} className="flex items-center w-full px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg">
+                    <LogOut className="w-4 h-4 mr-2" /> Logout
+                  </button>
+                </div>
               </div>
             </div>
           </div>

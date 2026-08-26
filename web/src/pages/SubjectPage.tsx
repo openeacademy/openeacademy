@@ -172,7 +172,8 @@ export default function SubjectPage() {
                             to={`/read/${pdf.slug}`}
                             className="btn-primary text-xs py-1.5 px-3.5 rounded-xl font-semibold flex items-center gap-1.5"
                           >
-                            <Eye className="w-3.5 h-3.5" /> Read Note
+                            <Eye className="w-3.5 h-3.5" /> 
+                            {pdf.requiresSubscription ? `Preview (${pdf.freePreviewPages || 3} pages)` : 'Read Note'}
                           </Link>
                         </div>
                       </motion.div>

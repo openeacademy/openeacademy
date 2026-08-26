@@ -110,8 +110,14 @@ router.patch('/users/:id/role', [body('role').isIn(Object.values(UserRole))], va
 
 router.delete('/users/:id', authorize(UserRole.SUPER_ADMIN), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.user.update({ where: { id: req.params.id }, data: { status: UserStatus.BANNED } });
-    return sendSuccess(res, null, 'User banned');
+    const isHard = req.query.hard === 'true';
+    if (isHard) {
+      await prisma.user.delete({ where: { id: req.params.id } });
+      return sendSuccess(res, null, 'User permanently deleted');
+    } else {
+      await prisma.user.update({ where: { id: req.params.id }, data: { status: UserStatus.BANNED } });
+      return sendSuccess(res, null, 'User banned (Soft delete)');
+    }
   } catch (err) {
     next(err);
   }
@@ -292,7 +298,11 @@ router.post('/coupons', [
 ], validate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = { ...req.body, code: req.body.code.toUpperCase() };
-    if (data.expiresAt) data.expiresAt = new Date(data.expiresAt).toISOString();
+    if (data.expiresAt) {
+      const date = new Date(data.expiresAt);
+      date.setUTCHours(23, 59, 59, 999);
+      data.expiresAt = date.toISOString();
+    }
     delete data.description;
     const coupon = await prisma.coupon.create({ data });
     return sendSuccess(res, coupon, 'Coupon created');
@@ -304,7 +314,11 @@ router.post('/coupons', [
 router.put('/coupons/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = { ...req.body };
-    if (data.expiresAt) data.expiresAt = new Date(data.expiresAt).toISOString();
+    if (data.expiresAt) {
+      const date = new Date(data.expiresAt);
+      date.setUTCHours(23, 59, 59, 999);
+      data.expiresAt = date.toISOString();
+    }
     delete data.description;
     const coupon = await prisma.coupon.update({ where: { id: req.params.id }, data });
     return sendSuccess(res, coupon, 'Coupon updated');
@@ -790,14 +804,25 @@ function sanitizePlanData(body: any) {
 
 router.post('/plans', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const plan = await prisma.subscriptionPlan.create({ data: sanitizePlanData(req.body) });
+    const data = sanitizePlanData(req.body);
+    if (data.isDefault) {
+      await prisma.subscriptionPlan.updateMany({ data: { isDefault: false } });
+    }
+    const plan = await prisma.subscriptionPlan.create({ data });
     return sendSuccess(res, plan, 'Plan created');
   } catch (err) { next(err); }
 });
 
 router.put('/plans/:id', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const plan = await prisma.subscriptionPlan.update({ where: { id: req.params.id }, data: sanitizePlanData(req.body) });
+    const data = sanitizePlanData(req.body);
+    if (data.isDefault) {
+      await prisma.subscriptionPlan.updateMany({ 
+        where: { id: { not: req.params.id } }, 
+        data: { isDefault: false } 
+      });
+    }
+    const plan = await prisma.subscriptionPlan.update({ where: { id: req.params.id }, data });
     return sendSuccess(res, plan, 'Plan updated');
   } catch (err) { next(err); }
 });
@@ -918,6 +943,139 @@ router.post('/settings/email/test', async (req: Request, res: Response, next: Ne
     } else {
       return sendError(res, `Email delivery failed: ${result.error}`, 500);
     }
+  } catch (err) { next(err); }
+});
+
+// ─── Admin Notifications ────────────────────────────────────────────────────────
+router.get('/notifications', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const { search } = req.query;
+
+    const where = search ? {
+      OR: [
+        { title: { contains: search as string, mode: 'insensitive' as const } },
+        { message: { contains: search as string, mode: 'insensitive' as const } },
+      ],
+    } : {};
+
+    const [notifications, total] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.notification.count({ where }),
+    ]);
+
+    return sendPaginated(res, notifications, total, page, limit);
+  } catch (err) { next(err); }
+});
+
+router.post('/notifications', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const notification = await prisma.notification.create({ data: req.body });
+    return sendSuccess(res, notification, 'Notification created successfully');
+  } catch (err) { next(err); }
+});
+
+router.delete('/notifications/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await prisma.notification.delete({ where: { id: req.params.id } });
+    return sendSuccess(res, null, 'Notification deleted');
+  } catch (err) { next(err); }
+});
+
+// ─── Admin Activity Logs ────────────────────────────────────────────────────────
+router.get('/activity-logs', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const { search, action } = req.query;
+
+    const where: any = {};
+    if (action) where.action = action;
+    if (search) {
+      where.user = {
+        OR: [
+          { name: { contains: search as string, mode: 'insensitive' as const } },
+          { email: { contains: search as string, mode: 'insensitive' as const } }
+        ]
+      };
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.activityLog.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { name: true, email: true, avatar: true } } }
+      }),
+      prisma.activityLog.count({ where }),
+    ]);
+
+    return sendPaginated(res, logs, total, page, limit);
+  } catch (err) { next(err); }
+});
+
+// ─── Admin Reports ────────────────────────────────────────────────────────
+router.get('/reports', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const totalUsers = await prisma.user.count();
+    const totalSubscriptions = await prisma.subscription.count();
+    const totalRevenueResult = await prisma.payment.aggregate({ where: { status: 'COMPLETED' }, _sum: { finalAmount: true } });
+    const totalRevenue = totalRevenueResult._sum.finalAmount || 0;
+    const totalPdfs = await prisma.pDF.count();
+    const totalQuizzes = await prisma.quiz.count();
+    
+    return sendSuccess(res, {
+      totalUsers,
+      totalSubscriptions,
+      totalRevenue,
+      totalPdfs,
+      totalQuizzes
+    });
+  } catch (err) { next(err); }
+});
+
+// ─── Admin SEO Manager ────────────────────────────────────────────────────────
+router.get('/seo', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const { search } = req.query;
+
+    const where = search ? {
+      OR: [
+        { title: { contains: search as string, mode: 'insensitive' as const } },
+        { description: { contains: search as string, mode: 'insensitive' as const } },
+      ],
+    } : {};
+
+    const [seo, total] = await Promise.all([
+      prisma.sEOMeta.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { id: 'desc' },
+      }),
+      prisma.sEOMeta.count({ where }),
+    ]);
+
+    return sendPaginated(res, seo, total, page, limit);
+  } catch (err) { next(err); }
+});
+
+router.put('/seo/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const seo = await prisma.sEOMeta.update({
+      where: { id: req.params.id },
+      data: req.body,
+    });
+    return sendSuccess(res, seo, 'SEO metadata updated');
   } catch (err) { next(err); }
 });
 

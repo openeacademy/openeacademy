@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiGet, apiPost } from '../lib/api';
@@ -26,6 +26,10 @@ export default function WebviewCheckout() {
   const { planId } = useParams<{ planId: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
+  const coupon = searchParams.get('coupon');
+  const razorpayPaymentId = searchParams.get('razorpay_payment_id');
+  const razorpayOrderId = searchParams.get('razorpay_order_id');
+  const razorpaySignature = searchParams.get('razorpay_signature');
   const { setTokens, user } = useAuthStore((state: any) => ({
     setTokens: state.setTokens,
     user: state.user,
@@ -46,9 +50,23 @@ export default function WebviewCheckout() {
   const plan = plansData?.data?.find((p: any) => p.id === planId);
 
   const createOrderMutation = useMutation({
-    mutationFn: () => apiPost<any>('/subscriptions/create-order', { planId }),
+    mutationFn: () => apiPost<any>('/subscriptions/create-order', { planId, couponCode: coupon || undefined }),
     onSuccess: async (data) => {
       const { orderId, amount, keyId, paymentId } = data.data;
+
+      if (amount === 0) {
+        try {
+          await apiPost('/subscriptions/verify-payment', { paymentId });
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PAYMENT_SUCCESS' }));
+          }
+        } catch (err: any) {
+          if (window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PAYMENT_ERROR', error: err?.response?.data?.message || 'Verification failed' }));
+          }
+        }
+        return;
+      }
 
       const isLoaded = await loadRazorpay();
       if (!isLoaded) {
@@ -112,18 +130,42 @@ export default function WebviewCheckout() {
     },
   });
 
+  const verifyRedirectMutation = useMutation({
+    mutationFn: (data: any) => apiPost('/subscriptions/verify-payment', data),
+    onSuccess: () => {
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PAYMENT_SUCCESS' }));
+    },
+    onError: (err: any) => {
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'PAYMENT_ERROR', error: err?.response?.data?.message || 'Verification failed' }));
+    }
+  });
+
+  const hasInitialized = React.useRef(false);
+
   // Trigger order creation when plan and token are ready
   useEffect(() => {
-    if (plan && token) {
-      createOrderMutation.mutate();
+    if (plan && token && !hasInitialized.current) {
+      hasInitialized.current = true;
+      if (razorpayPaymentId && razorpayOrderId && razorpaySignature) {
+        // Returned from bank redirect
+        verifyRedirectMutation.mutate({
+          razorpay_order_id: razorpayOrderId,
+          razorpay_payment_id: razorpayPaymentId,
+          razorpay_signature: razorpaySignature,
+        });
+      } else {
+        createOrderMutation.mutate();
+      }
     }
-  }, [plan, token]);
+  }, [plan, token, razorpayPaymentId, razorpayOrderId, razorpaySignature]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
       <div className="flex flex-col items-center gap-4 text-center">
         <div className="w-10 h-10 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-        <p className="text-gray-600 font-medium">Initializing Secure Payment Gateway...</p>
+        <p className="text-gray-600 font-medium">
+          {razorpayPaymentId ? 'Verifying Secure Payment...' : 'Initializing Secure Payment Gateway...'}
+        </p>
         <p className="text-xs text-gray-400">Please do not close this window</p>
       </div>
     </div>

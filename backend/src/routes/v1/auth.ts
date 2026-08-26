@@ -61,26 +61,26 @@ router.post(
         await sendEmail({ to: email, subject: 'Verify your email — Open E Academy', html: otpEmailTemplate(otp, name) });
       }
 
-      // Create initial session & tokens
-      const sessionId = uuidv4();
-      const refreshToken = signRefreshToken({ userId: user.id, sessionId });
-      const refreshExpiry = getTokenExpiry('30d');
-
-      await prisma.session.create({
-        data: {
-          id: sessionId,
-          userId: user.id,
-          refreshToken,
-          deviceInfo: deviceInfo || req.headers['user-agent'],
-          ipAddress: ipAddress || req.ip,
-          userAgent: req.headers['user-agent'],
-          expiresAt: refreshExpiry,
-        },
+      // Assign default subscription if exists
+      const defaultPlan = await prisma.subscriptionPlan.findFirst({
+        where: { isDefault: true, isActive: true }
       });
-
-      const accessToken = signAccessToken({ userId: user.id, role: user.role, email: user.email || undefined, mobile: user.mobile || undefined });
-
-      return sendCreated(res, { user, accessToken, refreshToken }, 'Registration successful. Please verify your email.');
+      if (defaultPlan) {
+        await prisma.subscription.create({
+          data: {
+            userId: user.id,
+            planId: defaultPlan.id,
+            status: 'ACTIVE',
+            startDate: new Date(),
+            endDate: new Date(Date.now() + defaultPlan.durationDays * 24 * 60 * 60 * 1000),
+            isLifetime: defaultPlan.duration === 'LIFETIME',
+            assignedBy: 'SYSTEM',
+            notes: 'Default plan activated on registration'
+          }
+        });
+      }
+      
+      return sendCreated(res, { user }, 'Registration successful. Please verify your email.');
     } catch (err) {
       next(err);
     }
@@ -146,7 +146,7 @@ router.post(
         data: { userId: user.id, action: 'LOGIN', ipAddress: req.ip, userAgent: req.headers['user-agent'] },
       });
 
-      const accessToken = signAccessToken({ userId: user.id, role: user.role, email: user.email || undefined, mobile: user.mobile || undefined });
+      const accessToken = signAccessToken({ userId: user.id, role: user.role, status: user.status, email: user.email || undefined, mobile: user.mobile || undefined });
 
       return sendSuccess(res, {
         accessToken,
@@ -181,7 +181,7 @@ router.post('/refresh', async (req: Request, res: Response, next: NextFunction) 
     const user = await prisma.user.findUnique({ where: { id: payload.userId } });
     if (!user) throw new UnauthorizedError('User not found');
 
-    const newAccessToken = signAccessToken({ userId: user.id, role: user.role, email: user.email || undefined });
+    const newAccessToken = signAccessToken({ userId: user.id, role: user.role, status: user.status, email: user.email || undefined });
     return sendSuccess(res, { accessToken: newAccessToken }, 'Token refreshed');
   } catch (err) {
     next(err);
@@ -278,12 +278,54 @@ router.post(
       await prisma.otp.update({ where: { id: record.id }, data: { used: true } });
 
       // Update user verification status
+      let updatedUser;
       if (record.userId) {
         if (type === 'EMAIL_VERIFICATION') {
-          await prisma.user.update({ where: { id: record.userId }, data: { emailVerified: true, status: 'ACTIVE' } });
+          updatedUser = await prisma.user.update({ where: { id: record.userId }, data: { emailVerified: true, status: 'ACTIVE' } });
         } else if (type === 'MOBILE_VERIFICATION') {
-          await prisma.user.update({ where: { id: record.userId }, data: { mobileVerified: true, status: 'ACTIVE' } });
+          updatedUser = await prisma.user.update({ where: { id: record.userId }, data: { mobileVerified: true, status: 'ACTIVE' } });
         }
+      }
+
+      if (updatedUser) {
+        // Create session and log the user in
+        const sessionId = uuidv4();
+        const refreshToken = signRefreshToken({ userId: updatedUser.id, sessionId });
+        const refreshExpiry = getTokenExpiry('30d');
+
+        await prisma.session.create({
+          data: {
+            id: sessionId,
+            userId: updatedUser.id,
+            refreshToken,
+            deviceInfo: req.headers['user-agent'],
+            ipAddress: req.ip,
+            userAgent: req.headers['user-agent'],
+            expiresAt: refreshExpiry,
+          },
+        });
+
+        const accessToken = signAccessToken({ 
+          userId: updatedUser.id, 
+          role: updatedUser.role, 
+          status: updatedUser.status,
+          email: updatedUser.email || undefined, 
+          mobile: updatedUser.mobile || undefined 
+        });
+
+        return sendSuccess(res, {
+          verified: true,
+          accessToken,
+          refreshToken,
+          user: {
+            id: updatedUser.id,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            mobile: updatedUser.mobile,
+            role: updatedUser.role,
+            avatar: updatedUser.avatar,
+          }
+        }, 'OTP verified and logged in successfully');
       }
 
       return sendSuccess(res, { verified: true }, 'OTP verified successfully');

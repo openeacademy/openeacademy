@@ -37,7 +37,7 @@ const durationLabel: Record<string, string> = {
   TWELVE_MONTHS: '1 Year', LIFETIME: 'Lifetime',
 };
 const durationOptions = ['ONE_MONTH', 'THREE_MONTHS', 'SIX_MONTHS', 'TWELVE_MONTHS', 'LIFETIME'];
-const typeOptions = ['BASIC', 'EXAM_PACK', 'PREMIUM'];
+const typeOptions = ['EXAM_PACK', 'SUBJECT_PACK', 'PDF_ONLY', 'PREMIUM', 'CUSTOM'];
 const durationDaysMap: Record<string, number> = {
   ONE_MONTH: 30, THREE_MONTHS: 90, SIX_MONTHS: 180, TWELVE_MONTHS: 365, LIFETIME: 36500,
 };
@@ -45,14 +45,14 @@ const durationDaysMap: Record<string, number> = {
 interface PlanForm {
   name: string; type: string; duration: string; durationDays: number;
   originalPrice: number; discountedPrice: number; gstPercent: number;
-  features: string[]; isFeatured: boolean; isActive: boolean; sortOrder: number;
+  features: string[]; isFeatured: boolean; isDefault: boolean; isActive: boolean; sortOrder: number;
 }
 
 const defaultForm: PlanForm = {
   name: '', type: 'PREMIUM', duration: 'ONE_MONTH', durationDays: 30,
   originalPrice: 499, discountedPrice: 299, gstPercent: 18,
   features: ['access_all_pdfs', 'access_all_quizzes', 'analytics_dashboard'],
-  isFeatured: false, isActive: true, sortOrder: 0,
+  isFeatured: false, isDefault: false, isActive: true, sortOrder: 0,
 };
 
 // ─── Manual Assign Modal ──────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ export default function SubscriptionsPage() {
       name: plan.name, type: plan.type, duration: plan.duration, durationDays: plan.durationDays,
       originalPrice: plan.originalPrice, discountedPrice: plan.discountedPrice,
       gstPercent: plan.gstPercent, features: plan.features || [],
-      isFeatured: plan.isFeatured, isActive: plan.isActive, sortOrder: plan.sortOrder || 0,
+      isFeatured: plan.isFeatured, isDefault: plan.isDefault || false, isActive: plan.isActive, sortOrder: plan.sortOrder || 0,
     });
     setModal({ open: true, plan });
   };
@@ -260,9 +260,11 @@ export default function SubscriptionsPage() {
   };
 
   const typeBadgeColor: Record<string, string> = {
-    BASIC: 'bg-gray-100 text-gray-700',
     EXAM_PACK: 'bg-indigo-100 text-indigo-700',
+    SUBJECT_PACK: 'bg-green-100 text-green-700',
+    PDF_ONLY: 'bg-orange-100 text-orange-700',
     PREMIUM: 'badge-primary',
+    CUSTOM: 'bg-purple-100 text-purple-700',
   };
 
   return (
@@ -328,10 +330,14 @@ export default function SubscriptionsPage() {
                     <label className="label">Sort Order</label>
                     <input type="number" min="0" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: +e.target.value }))} className="input" />
                   </div>
-                  <div className="flex items-end gap-6 pb-1">
+                  <div className="col-span-2 flex flex-wrap items-end gap-6 pb-1">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={form.isFeatured} onChange={e => setForm(f => ({ ...f, isFeatured: e.target.checked }))} className="w-4 h-4 rounded accent-primary-600" />
                       <span className="text-sm text-gray-600">Featured (Most Popular)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={form.isDefault} onChange={e => setForm(f => ({ ...f, isDefault: e.target.checked }))} className="w-4 h-4 rounded accent-primary-600" />
+                      <span className="text-sm text-gray-600">Default (Auto-assign on Register)</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} className="w-4 h-4 rounded accent-primary-600" />

@@ -99,8 +99,22 @@ export default function CheckoutPage() {
         planId,
         couponCode: appliedCoupon?.code || undefined,
       }),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const { orderId, amount, keyId, paymentId } = data.data;
+
+      if (amount === 0) {
+        try {
+          toast.loading('Processing free subscription...', { id: 'rzp_verify' });
+          await apiPost('/subscriptions/verify-payment', { paymentId });
+          toast.dismiss('rzp_verify');
+          toast.success('🎉 Subscription active! All plan features unlocked!');
+          navigate('/dashboard');
+        } catch {
+          toast.dismiss('rzp_verify');
+          toast.error('Verification failed. Please contact support.');
+        }
+        return;
+      }
 
       const options = {
         key: keyId || 'rzp_test_demo',
