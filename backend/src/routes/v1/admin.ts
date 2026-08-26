@@ -357,7 +357,7 @@ router.get('/logs', async (req: Request, res: Response, next: NextFunction) => {
 router.get('/settings/email', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const keys = ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass', 'email_from'];
-    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
     const map: Record<string, string> = {};
     for (const s of settings) {
       // Mask password
@@ -382,13 +382,12 @@ router.put('/settings/email', async (req: Request, res: Response, next: NextFunc
     const { smtp_host, smtp_port, smtp_secure, smtp_user, smtp_pass, email_from } = req.body;
     if (!smtp_host || !smtp_user) return sendError(res, 'SMTP host and user are required', 400);
 
-    const updaterId = (req as any).user?.userId;
-    const upsert = async (key: string, value: string, isSecret = false) => {
-      if (key === 'smtp_pass' && value === '••••••••') return; // Don't overwrite with masked placeholder
-      await (prisma as any).systemSetting.upsert({
+    const upsert = async (key: string, value: string) => {
+      if (key === 'smtp_pass' && value === '••••••••') return; 
+      await prisma.appSetting.upsert({
         where: { key },
-        update: { value, updatedBy: updaterId },
-        create: { key, value, isSecret, updatedBy: updaterId },
+        update: { value },
+        create: { key, value, group: 'email' },
       });
     };
 
@@ -396,7 +395,7 @@ router.put('/settings/email', async (req: Request, res: Response, next: NextFunc
     await upsert('smtp_port', String(smtp_port || 587));
     await upsert('smtp_secure', String(smtp_secure || false));
     await upsert('smtp_user', smtp_user);
-    if (smtp_pass && smtp_pass !== '••••••••') await upsert('smtp_pass', smtp_pass, true);
+    if (smtp_pass && smtp_pass !== '••••••••') await upsert('smtp_pass', smtp_pass);
     if (email_from) await upsert('email_from', email_from);
 
     return sendSuccess(res, null, 'Email settings saved successfully');
@@ -407,7 +406,7 @@ router.put('/settings/email', async (req: Request, res: Response, next: NextFunc
 router.get('/settings/payment', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const keys = ['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'];
-    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const settings = await prisma.appSetting.findMany({ where: { key: { in: keys } } });
     const map: Record<string, string> = {};
     for (const s of settings) {
       if (s.key === 'razorpay_key_secret' || s.key === 'razorpay_webhook_secret') {
@@ -430,19 +429,18 @@ router.put('/settings/payment', async (req: Request, res: Response, next: NextFu
   try {
     const { razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret } = req.body;
     
-    const updaterId = (req as any).user?.userId;
-    const upsert = async (key: string, value: string, isSecret = false) => {
+    const upsert = async (key: string, value: string) => {
       if ((key === 'razorpay_key_secret' || key === 'razorpay_webhook_secret') && value === '••••••••') return; 
-      await (prisma as any).systemSetting.upsert({
+      await prisma.appSetting.upsert({
         where: { key },
-        update: { value, updatedBy: updaterId },
-        create: { key, value, isSecret, updatedBy: updaterId },
+        update: { value },
+        create: { key, value, group: 'payment' },
       });
     };
 
     if (razorpay_key_id !== undefined) await upsert('razorpay_key_id', razorpay_key_id);
-    if (razorpay_key_secret && razorpay_key_secret !== '••••••••') await upsert('razorpay_key_secret', razorpay_key_secret, true);
-    if (razorpay_webhook_secret && razorpay_webhook_secret !== '••••••••') await upsert('razorpay_webhook_secret', razorpay_webhook_secret, true);
+    if (razorpay_key_secret && razorpay_key_secret !== '••••••••') await upsert('razorpay_key_secret', razorpay_key_secret);
+    if (razorpay_webhook_secret && razorpay_webhook_secret !== '••••••••') await upsert('razorpay_webhook_secret', razorpay_webhook_secret);
 
     return sendSuccess(res, null, 'Payment settings saved successfully');
   } catch (err) { next(err); }
@@ -866,12 +864,11 @@ router.put('/settings/email', async (req: Request, res: Response, next: NextFunc
     if (!smtp_host || !smtp_user) return sendError(res, 'SMTP host and user are required', 400);
 
     const updaterId = (req as any).user?.userId;
-    const upsert = async (key: string, value: string, isSecret = false) => {
-      if (key === 'smtp_pass' && value === '••••••••') return; // Don't overwrite with masked placeholder
-      await (prisma as any).systemSetting.upsert({
+    const upsert = async (key: string, value: string) => {
+      await (prisma as any).appSetting.upsert({
         where: { key },
         update: { value, updatedBy: updaterId },
-        create: { key, value, isSecret, updatedBy: updaterId },
+        create: { key, value, updatedBy: updaterId },
       });
     };
 
@@ -879,7 +876,7 @@ router.put('/settings/email', async (req: Request, res: Response, next: NextFunc
     await upsert('smtp_port', String(smtp_port || 587));
     await upsert('smtp_secure', String(smtp_secure || false));
     await upsert('smtp_user', smtp_user);
-    if (smtp_pass && smtp_pass !== '••••••••') await upsert('smtp_pass', smtp_pass, true);
+    if (smtp_pass && smtp_pass !== '••••••••') await upsert('smtp_pass', smtp_pass);
     if (email_from) await upsert('email_from', email_from);
 
     return sendSuccess(res, null, 'Email settings saved successfully');
@@ -890,7 +887,7 @@ router.put('/settings/email', async (req: Request, res: Response, next: NextFunc
 router.get('/settings/payment', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const keys = ['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'];
-    const settings = await (prisma as any).systemSetting.findMany({ where: { key: { in: keys } } });
+    const settings = await (prisma as any).appSetting.findMany({ where: { key: { in: keys } } });
     const map: Record<string, string> = {};
     for (const s of settings) {
       if (s.key === 'razorpay_key_secret' || s.key === 'razorpay_webhook_secret') {
@@ -914,18 +911,17 @@ router.put('/settings/payment', async (req: Request, res: Response, next: NextFu
     const { razorpay_key_id, razorpay_key_secret, razorpay_webhook_secret } = req.body;
     
     const updaterId = (req as any).user?.userId;
-    const upsert = async (key: string, value: string, isSecret = false) => {
-      if ((key === 'razorpay_key_secret' || key === 'razorpay_webhook_secret') && value === '••••••••') return; 
-      await (prisma as any).systemSetting.upsert({
+    const upsert = async (key: string, value: string) => {
+      await (prisma as any).appSetting.upsert({
         where: { key },
         update: { value, updatedBy: updaterId },
-        create: { key, value, isSecret, updatedBy: updaterId },
+        create: { key, value, updatedBy: updaterId },
       });
     };
 
     if (razorpay_key_id !== undefined) await upsert('razorpay_key_id', razorpay_key_id);
-    if (razorpay_key_secret && razorpay_key_secret !== '••••••••') await upsert('razorpay_key_secret', razorpay_key_secret, true);
-    if (razorpay_webhook_secret && razorpay_webhook_secret !== '••••••••') await upsert('razorpay_webhook_secret', razorpay_webhook_secret, true);
+    if (razorpay_key_secret && razorpay_key_secret !== '••••••••') await upsert('razorpay_key_secret', razorpay_key_secret);
+    if (razorpay_webhook_secret && razorpay_webhook_secret !== '••••••••') await upsert('razorpay_webhook_secret', razorpay_webhook_secret);
 
     return sendSuccess(res, null, 'Payment settings saved successfully');
   } catch (err) { next(err); }

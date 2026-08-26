@@ -16,7 +16,7 @@ interface EmailConfig {
  */
 async function getEmailConfig(): Promise<EmailConfig> {
   try {
-    const settings = await (prisma as any).systemSetting.findMany({
+    const settings = await prisma.appSetting.findMany({
       where: { key: { in: ['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass', 'email_from'] } },
     });
     const map: Record<string, string> = {};

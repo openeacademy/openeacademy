@@ -9,13 +9,17 @@ export interface RazorpayConfig {
 }
 
 /**
- * Fetches Razorpay configuration from the database (SystemSetting).
+ * Fetches Razorpay configuration from the database (AppSetting).
  * Falls back to environment variables from config if not found in DB.
  */
 export async function getRazorpayConfig(): Promise<RazorpayConfig> {
   const keys = ['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'];
-  const settings = await (prisma as any).systemSetting.findMany({
-    where: { key: { in: keys } },
+  const settings = await prisma.appSetting.findMany({
+    where: {
+      key: {
+        in: ['razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret'],
+      },
+    },
   });
 
   const map: Record<string, string> = {};
