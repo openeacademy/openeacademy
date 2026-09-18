@@ -499,10 +499,39 @@ router.post('/capture-lead', async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    return sendSuccess(res, null, 'Thank you for your interest');
+    return sendSuccess(res, null, 'Lead captured');
   } catch (err) {
-    // Non-fatal — just succeed silently
-    return sendSuccess(res, null, 'Captured');
+    next(err);
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/auth/delete-request:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Submit a public account deletion request
+ */
+router.post('/delete-request', [
+  body('identifier').trim().notEmpty().withMessage('Email or Mobile number is required'),
+  body('reason').trim().notEmpty().withMessage('Reason is required'),
+], validate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { identifier, reason } = req.body;
+    
+    // Add deletion request to database
+    // Ignore TS errors if prisma client isn't regenerated yet during dev
+    await (prisma as any).accountDeletionRequest.create({
+      data: {
+        identifier,
+        reason,
+        status: 'PENDING',
+      },
+    });
+    
+    return sendSuccess(res, null, 'Your account deletion request has been submitted successfully.');
+  } catch (err) {
+    next(err);
   }
 });
 

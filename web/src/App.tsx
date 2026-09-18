@@ -40,6 +40,7 @@ const PrivacyPage = lazy(() => import('./pages/static/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/static/TermsPage'));
 const RefundPage = lazy(() => import('./pages/static/RefundPage'));
 const FAQPage = lazy(() => import('./pages/static/FAQPage'));
+const AccountDeletionPage = lazy(() => import('./pages/static/AccountDeletionPage'));
 
 // Page loading fallback
 const PageLoader = () => (
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="terms" element={<TermsPage />} />
             <Route path="refund" element={<RefundPage />} />
             <Route path="faq" element={<FAQPage />} />
+            <Route path="delete-account" element={<AccountDeletionPage />} />
           </Route>
 
           {/* Auth routes */}

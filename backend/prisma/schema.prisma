@@ -140,9 +140,26 @@ enum ActivityAction {
   ADMIN_ACTION
 }
 
+enum DeletionRequestStatus {
+  PENDING
+  PROCESSED
+  REJECTED
+}
+
 // ─────────────────────────────────────────────
 // USERS
 // ─────────────────────────────────────────────
+
+model AccountDeletionRequest {
+  id         String                @id @default(uuid())
+  identifier String
+  reason     String?
+  status     DeletionRequestStatus @default(PENDING)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@map("account_deletion_requests")
+}
 
 model User {
   id             String     @id @default(uuid())

@@ -178,6 +178,7 @@ export default function MainLayout() {
                 <li><Link to="/terms" className="hover:text-primary-400 transition-colors">Terms of Service</Link></li>
                 <li><Link to="/refund" className="hover:text-primary-400 transition-colors">Refund Policy</Link></li>
                 <li><Link to="/faq" className="hover:text-primary-400 transition-colors">FAQ</Link></li>
+                <li><Link to="/delete-account" className="hover:text-red-400 text-gray-400 transition-colors">Account Deletion</Link></li>
               </ul>
             </div>
           </div>
