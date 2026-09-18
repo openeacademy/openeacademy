@@ -4,7 +4,7 @@ import { apiGet, apiPatch, apiPost, apiDelete } from '../lib/api';
 import {
   Search, MoreVertical, Shield, Ban, CheckCircle, UserX, X,
   Loader2, Crown, CreditCard, Activity, Calendar, ChevronRight,
-  Mail, Phone, Download, Plus,
+  Mail, Phone, Download, Plus, Eye, EyeOff,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -42,7 +42,8 @@ export default function UsersPage() {
   
   // Create User State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [createUserForm, setCreateUserForm] = useState({ name: '', email: '', mobile: '', password: '', role: 'STUDENT' });
+  const [createUserForm, setCreateUserForm] = useState({ name: '', email: '', mobile: '', password: '', role: 'USER' });
+  const [showPassword, setShowPassword] = useState(false);
   
   const queryClient = useQueryClient();
 
@@ -110,7 +111,8 @@ export default function UsersPage() {
       toast.success('User created successfully');
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setIsCreateModalOpen(false);
-      setCreateUserForm({ name: '', email: '', mobile: '', password: '', role: 'STUDENT' });
+      setCreateUserForm({ name: '', email: '', mobile: '', password: '', role: 'USER' });
+      setShowPassword(false);
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to create user'),
   });
@@ -401,14 +403,14 @@ export default function UsersPage() {
 
       {/* Create User Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
               <h2 className="text-lg font-bold text-gray-900">Create New User</h2>
               <button onClick={() => setIsCreateModalOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
             </div>
             
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto">
               <div>
                 <label className="label">Full Name *</label>
                 <input 
@@ -445,13 +447,22 @@ export default function UsersPage() {
               
               <div>
                 <label className="label">Temporary Password *</label>
-                <input 
-                  type="password" 
-                  value={createUserForm.password} 
-                  onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))} 
-                  className="input" 
-                  placeholder="Min 6 characters" 
-                />
+                <div className="relative">
+                  <input 
+                    type={showPassword ? 'text' : 'password'} 
+                    value={createUserForm.password} 
+                    onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))} 
+                    className="input pr-10" 
+                    placeholder="Min 6 characters" 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               
               <div>
@@ -461,7 +472,7 @@ export default function UsersPage() {
                   onChange={e => setCreateUserForm(f => ({ ...f, role: e.target.value }))} 
                   className="input"
                 >
-                  <option value="STUDENT">Student</option>
+                  <option value="USER">Student</option>
                   <option value="CONTENT_MANAGER">Content Manager</option>
                   <option value="ADMIN">Admin</option>
                   <option value="SUPER_ADMIN">Super Admin</option>
