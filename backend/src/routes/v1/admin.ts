@@ -5,12 +5,13 @@ import { validate } from '../../middleware/validate';
 import { authenticate, authorize } from '../../middleware/auth';
 import { sendSuccess, sendPaginated, sendError } from '../../utils/response';
 import { testEmailConfig } from '../../utils/email';
-import { NotFoundError } from '../../utils/errors';
+import { NotFoundError, ConflictError } from '../../utils/errors';
 import { UserRole, UserStatus } from '@prisma/client';
 import { imageUpload } from '../../middleware/upload';
 import { uploadFile, getPublicUrl } from '../../utils/storage';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
 
 const router = Router();
 
@@ -65,6 +66,56 @@ router.get('/users', async (req: Request, res: Response, next: NextFunction) => 
     ]);
 
     return sendPaginated(res, users, total, page, limit);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/users', [
+  body('name').trim().notEmpty().withMessage('Name is required'),
+  body('email').optional({ checkFalsy: true }).isEmail().withMessage('Valid email is required').normalizeEmail(),
+  body('mobile').optional({ checkFalsy: true }).matches(/^\d{10}$/).withMessage('Valid 10-digit mobile number required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('role').isIn(Object.values(UserRole)).withMessage('Invalid role'),
+], validate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { name, email, mobile, password, role } = req.body;
+    
+    if (!email && !mobile) {
+      return res.status(400).json({ success: false, message: 'Email or mobile number is required' });
+    }
+
+    // Check existing
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(email ? [{ email }] : []),
+          ...(mobile ? [{ mobile }] : []),
+        ],
+      },
+    });
+
+    if (existingUser) {
+      throw new ConflictError('User already exists with this email or mobile');
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email: email || null,
+        mobile: mobile || null,
+        passwordHash,
+        role,
+        emailVerified: !!email, // Auto-verify if created by admin
+        mobileVerified: !!mobile,
+      },
+    });
+
+    // Don't send password hash back
+    const { passwordHash: _, ...safeUser } = user;
+    return sendSuccess(res, safeUser, 'User created successfully');
   } catch (err) {
     next(err);
   }

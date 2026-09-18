@@ -4,7 +4,7 @@ import { apiGet, apiPatch, apiPost, apiDelete } from '../lib/api';
 import {
   Search, MoreVertical, Shield, Ban, CheckCircle, UserX, X,
   Loader2, Crown, CreditCard, Activity, Calendar, ChevronRight,
-  Mail, Phone, Download,
+  Mail, Phone, Download, Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -39,6 +39,11 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [manualSubModal, setManualSubModal] = useState(false);
   const [manualSubForm, setManualSubForm] = useState({ planId: '', startDate: '', endDate: '', notes: '' });
+  
+  // Create User State
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({ name: '', email: '', mobile: '', password: '', role: 'STUDENT' });
+  
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -97,6 +102,17 @@ export default function UsersPage() {
       setManualSubForm({ planId: '', startDate: '', endDate: '', notes: '' });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed'),
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: (data: any) => apiPost('/admin/users', data),
+    onSuccess: () => {
+      toast.success('User created successfully');
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setIsCreateModalOpen(false);
+      setCreateUserForm({ name: '', email: '', mobile: '', password: '', role: 'STUDENT' });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to create user'),
   });
 
   const users = data?.data || [];
@@ -296,8 +312,11 @@ export default function UsersPage() {
           <p className="text-gray-500">Manage all registered users ({total} total)</p>
         </div>
         <div className="flex items-center gap-3">
+          <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary text-sm">
+            <Plus className="w-4 h-4 mr-1.5" /> Create User
+          </button>
           <button onClick={handleExportCSV} className="btn-secondary text-sm">
-            <Download className="w-4 h-4" /> Export
+            <Download className="w-4 h-4 mr-1.5" /> Export
           </button>
         </div>
       </div>
@@ -377,6 +396,96 @@ export default function UsersPage() {
           <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="btn-secondary px-3 py-1 text-xs disabled:opacity-50">Prev</button>
           <span className="text-sm font-medium text-gray-600 py-1">Page {page} of {totalPages}</span>
           <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="btn-secondary px-3 py-1 text-xs disabled:opacity-50">Next</button>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">Create New User</h2>
+              <button onClick={() => setIsCreateModalOpen(false)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="w-4 h-4" /></button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="label">Full Name *</label>
+                <input 
+                  type="text" 
+                  value={createUserForm.name} 
+                  onChange={e => setCreateUserForm(f => ({ ...f, name: e.target.value }))} 
+                  className="input" 
+                  placeholder="John Doe" 
+                />
+              </div>
+              
+              <div>
+                <label className="label">Email Address</label>
+                <input 
+                  type="email" 
+                  value={createUserForm.email} 
+                  onChange={e => setCreateUserForm(f => ({ ...f, email: e.target.value }))} 
+                  className="input" 
+                  placeholder="user@example.com" 
+                />
+              </div>
+              
+              <div>
+                <label className="label">Mobile Number</label>
+                <input 
+                  type="tel" 
+                  value={createUserForm.mobile} 
+                  onChange={e => setCreateUserForm(f => ({ ...f, mobile: e.target.value.replace(/\D/g, '').slice(0, 10) }))} 
+                  className="input" 
+                  placeholder="10-digit mobile" 
+                />
+                <p className="text-xs text-gray-400 mt-1">Provide at least Email OR Mobile</p>
+              </div>
+              
+              <div>
+                <label className="label">Temporary Password *</label>
+                <input 
+                  type="password" 
+                  value={createUserForm.password} 
+                  onChange={e => setCreateUserForm(f => ({ ...f, password: e.target.value }))} 
+                  className="input" 
+                  placeholder="Min 6 characters" 
+                />
+              </div>
+              
+              <div>
+                <label className="label">System Role *</label>
+                <select 
+                  value={createUserForm.role} 
+                  onChange={e => setCreateUserForm(f => ({ ...f, role: e.target.value }))} 
+                  className="input"
+                >
+                  <option value="STUDENT">Student</option>
+                  <option value="CONTENT_MANAGER">Content Manager</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="SUPER_ADMIN">Super Admin</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 p-5 border-t border-gray-100">
+              <button onClick={() => setIsCreateModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button 
+                disabled={createUserMutation.isPending || !createUserForm.name || !createUserForm.password || (!createUserForm.email && !createUserForm.mobile)}
+                onClick={() => {
+                  createUserMutation.mutate({
+                    ...createUserForm,
+                    email: createUserForm.email || undefined,
+                    mobile: createUserForm.mobile || undefined,
+                  });
+                }} 
+                className="btn-primary flex-1"
+              >
+                {createUserMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create User'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
