@@ -173,9 +173,11 @@ export default function MainLayout() {
             <div>
               <h4 className="text-white font-semibold mb-4">Support</h4>
               <ul className="space-y-2 text-sm">
-                {['Contact Us', 'Privacy Policy', 'Terms of Service', 'Refund Policy', 'FAQ'].map(s => (
-                  <li key={s}><a href="#" className="hover:text-primary-400 transition-colors">{s}</a></li>
-                ))}
+                <li><Link to="/contact" className="hover:text-primary-400 transition-colors">Contact Us</Link></li>
+                <li><Link to="/privacy" className="hover:text-primary-400 transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="hover:text-primary-400 transition-colors">Terms of Service</Link></li>
+                <li><Link to="/refund" className="hover:text-primary-400 transition-colors">Refund Policy</Link></li>
+                <li><Link to="/faq" className="hover:text-primary-400 transition-colors">FAQ</Link></li>
               </ul>
             </div>
           </div>

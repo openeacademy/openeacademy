@@ -34,6 +34,13 @@ const PaymentHistoryPage = lazy(() => import('./pages/dashboard/PaymentHistoryPa
 const QuizHistoryPage = lazy(() => import('./pages/dashboard/QuizHistoryPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
+// Static pages
+const ContactPage = lazy(() => import('./pages/static/ContactPage'));
+const PrivacyPage = lazy(() => import('./pages/static/PrivacyPage'));
+const TermsPage = lazy(() => import('./pages/static/TermsPage'));
+const RefundPage = lazy(() => import('./pages/static/RefundPage'));
+const FAQPage = lazy(() => import('./pages/static/FAQPage'));
+
 // Page loading fallback
 const PageLoader = () => (
   <div className="min-h-screen flex items-center justify-center">
@@ -95,6 +102,13 @@ export default function App() {
             <Route path="quizzes" element={<QuizListPage />} />
             <Route path="subscriptions" element={<SubscriptionPage />} />
             <Route path="checkout/:planId" element={<ProtectedRoute><CheckoutPage /></ProtectedRoute>} />
+            
+            {/* Static Pages */}
+            <Route path="contact" element={<ContactPage />} />
+            <Route path="privacy" element={<PrivacyPage />} />
+            <Route path="terms" element={<TermsPage />} />
+            <Route path="refund" element={<RefundPage />} />
+            <Route path="faq" element={<FAQPage />} />
           </Route>
 
           {/* Auth routes */}
