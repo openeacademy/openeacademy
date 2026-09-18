@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, BookOpen, FileText, Trophy, CreditCard, 
   LogOut, Settings, HelpCircle, Bell, Search, Shield, ChevronDown, 
   ChevronRight, Tag, BarChart3, Globe, Activity, Layers, FolderTree,
-  Sliders, UserCheck, Key, Menu, X
+  Sliders, UserCheck, Key, Menu, X, UserX
 } from 'lucide-react';
 
 interface NavSection {
@@ -34,6 +34,7 @@ const navSections: NavSection[] = [
     title: 'People',
     items: [
       { icon: Users, label: 'Users & Controls', path: '/users' },
+      { icon: UserX, label: 'Account Deletions', path: '/delete-requests' },
       { icon: Key, label: 'Roles & Permissions', path: '/roles' },
     ],
   },

@@ -1126,4 +1126,45 @@ router.put('/seo/:id', async (req: Request, res: Response, next: NextFunction) =
   } catch (err) { next(err); }
 });
 
+// ─── Account Deletion Requests ──────────────────────────────────────────────────
+router.get('/delete-requests', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const { search, status } = req.query;
+
+    const where = {
+      ...(search && { identifier: { contains: search as string, mode: 'insensitive' as const } }),
+      ...(status && { status: status as any }),
+    };
+
+    const [requests, total] = await Promise.all([
+      (prisma as any).accountDeletionRequest.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      (prisma as any).accountDeletionRequest.count({ where }),
+    ]);
+
+    return sendPaginated(res, requests, total, page, limit);
+  } catch (err) { next(err); }
+});
+
+router.patch('/delete-requests/:id/status', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { status } = req.body;
+    if (!['PROCESSED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const request = await (prisma as any).accountDeletionRequest.update({
+      where: { id: req.params.id },
+      data: { status },
+    });
+    return sendSuccess(res, request, 'Request status updated');
+  } catch (err) { next(err); }
+});
+
 export default router;

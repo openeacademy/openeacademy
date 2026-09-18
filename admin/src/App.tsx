@@ -4,6 +4,7 @@ import AdminLayout from './layouts/AdminLayout';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
+import DeleteRequestsPage from './pages/DeleteRequestsPage';
 import ExamsPage from './pages/ExamsPage';
 import SubjectsPage from './pages/SubjectsPage';
 import PDFsPage from './pages/PDFsPage';
@@ -41,6 +42,7 @@ export default function App() {
           <Route path="questions" element={<QuestionsPage />} />
           <Route path="quizzes" element={<QuizzesPage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="delete-requests" element={<DeleteRequestsPage />} />
           <Route path="roles" element={<RolesPage />} />
           <Route path="subscriptions" element={<SubscriptionsPage />} />
           <Route path="payments" element={<PaymentsPage />} />
